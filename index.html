@@ -35,6 +35,11 @@
       padding: 12px 14px; margin-bottom: 10px; font-size: 13px; font-weight: 700; color: #8A6416;
     }
     .edit-banner.show { display: flex; }
+    .edit-banner .banner-text { flex: 1; }
+    .btn-cancel-edit {
+      border: 1.5px solid #C79A2E; background: #fff; color: #8A6416; border-radius: 8px;
+      padding: 8px 12px; font-size: 12.5px; font-weight: 700; flex-shrink: 0;
+    }
 
     /* ===== カード ===== */
     .card {
@@ -157,7 +162,10 @@
       <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
     </div>
 
-    <div class="edit-banner" id="edit-banner">✏️ 修正モード：内容を変更して送信してください</div>
+    <div class="edit-banner" id="edit-banner">
+      <span class="banner-text">✏️ 修正モード：内容を変更して送信してください</span>
+      <button class="btn-cancel-edit" onclick="cancelEdit()">キャンセル</button>
+    </div>
 
     <div class="card" id="step-name">
       <div class="card-label">
@@ -265,9 +273,21 @@
   var confirmName = '';
   var carrierAutoSet = false;
   var editMode = false;
+  // 修正モードのとき、どのレコードを書き換えるのかを保持する。
+  // これを送らないとGAS側が元の行を特定できず、新規追加になってしまう。
+  var editOriginal = null;
+
+  // 名前の正規リスト（チップの data-value が唯一の定義元）
+  var VALID_NAMES = Array.prototype.map.call(
+    document.querySelectorAll('#chips-name .chip'),
+    function(b) { return b.dataset.value; }
+  );
 
   var urlParams = new URLSearchParams(window.location.search);
-  var staffFromUrl = urlParams.get('staff');
+  // URLで渡された名前はリストに載っている場合のみ採用する。
+  // 載っていない（削除された等）ときは通常の名前選択にフォールバックする。
+  var staffParam = urlParams.get('staff');
+  var staffFromUrl = (staffParam && VALID_NAMES.indexOf(staffParam) !== -1) ? staffParam : null;
 
   var stepOrder = staffFromUrl
     ? ['torihiki', 'carrier', 'date', 'place']
@@ -484,6 +504,7 @@
     document.getElementById('page-input').classList.toggle('active', tab === 'input');
     document.getElementById('page-confirm').classList.toggle('active', tab === 'confirm');
     document.getElementById('submit-bar').style.display = (tab === 'input') ? 'block' : 'none';
+    if (tab === 'confirm') { exitEditMode(); loadMyShifts(); }
   }
 
   // ===== カレンダー =====
@@ -595,7 +616,11 @@
     resultEl.textContent = '送信中...';
     btn.disabled = true;
 
-    callApi('submitShift', { data: data })
+    var payload = { data: data };
+    // 修正モードでは元レコードのキーを付ける（GAS側で該当行を更新するために必要）
+    if (editMode && editOriginal) payload.original = editOriginal;
+
+    callApi('submitShift', payload)
       .then(function() {
         resultEl.className = 'success';
         resultEl.textContent = '✅ 送信完了しました！';
@@ -609,8 +634,7 @@
         updateSummary();
         updateProgress();
 
-        editMode = false;
-        document.getElementById('edit-banner').classList.remove('show');
+        exitEditMode();
 
         scrollToStep('date');
 
@@ -631,7 +655,7 @@
   // ===== 確認・修正 =====
   function loadMyShifts() {
     var listEl = document.getElementById('shift-list');
-    if (!confirmName) { listEl.innerHTML = ''; return; }
+    if (!confirmName) { listEl.innerHTML = '<div class="empty-msg">上から名前を選択してください</div>'; return; }
     listEl.innerHTML = '<div class="loading-msg">読み込み中...</div>';
     callApi('getMyShifts', { name: confirmName })
       .then(function(shifts) { renderShiftList(shifts); })
@@ -687,6 +711,16 @@
     updateProgress();
 
     editMode = true;
+    editOriginal = {
+      id: (shift.id !== undefined ? shift.id : null),
+      row: (shift.row !== undefined ? shift.row : null),
+      name: confirmName,
+      year: shift.year,
+      month: shift.month,
+      startDay: shift.startDay,
+      endDay: shift.endDay,
+      torihiki: shift.torihiki
+    };
     document.getElementById('edit-banner').classList.add('show');
 
     var resultEl = document.getElementById('result');
@@ -695,10 +729,43 @@
     window.scrollTo(0, 0);
   }
 
+  function exitEditMode() {
+    editMode = false;
+    editOriginal = null;
+    document.getElementById('edit-banner').classList.remove('show');
+  }
+
+  function cancelEdit() {
+    exitEditMode();
+    startDay = null; endDay = null;
+    document.getElementById('place').value = '';
+    document.getElementById('hotel').value = '';
+    document.getElementById('result').textContent = '';
+    renderCal();
+    updateSummary();
+    updateProgress();
+    switchTab('confirm');
+    window.scrollTo(0, 0);
+  }
+
   function deleteShift(i) {
     var s = loadedShifts[i];
-    if (!confirm(confirmName + ' の ' + s.month + '月' + s.startDay + '日〜' + s.endDay + '日 を削除しますか？')) return;
-    callApi('deleteShift', { name: confirmName, startDay: s.startDay, endDay: s.endDay })
+    var label = s.year + '年' + s.month + '月' + s.startDay + '日'
+              + (s.startDay !== s.endDay ? '〜' + s.endDay + '日' : '')
+              + '（' + s.torihiki + '）';
+    if (!confirm(confirmName + ' の ' + label + ' を削除しますか？')) return;
+    // 年月と取引先まで送って対象行を一意に絞る。
+    // これが無いと別の月の同じ日程まで消える恐れがある。
+    callApi('deleteShift', {
+      id: (s.id !== undefined ? s.id : null),
+      row: (s.row !== undefined ? s.row : null),
+      name: confirmName,
+      year: s.year,
+      month: s.month,
+      startDay: s.startDay,
+      endDay: s.endDay,
+      torihiki: s.torihiki
+    })
       .then(function() { loadMyShifts(); })
       .catch(function(err) { alert('削除エラー: ' + err.message); });
   }
