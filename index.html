@@ -96,9 +96,7 @@
     .qp:active { background: #EEF2F6; }
 
     /* ===== カレンダー ===== */
-    .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .cal-nav { background: #F2F6F9; border: none; border-radius: 10px; width: 48px; height: 44px; font-size: 18px; color: #2D5F8A; font-weight: 700; }
-    .cal-nav:active { background: #DDE8F0; }
+    .cal-header { display: flex; align-items: center; justify-content: center; margin-bottom: 12px; min-height: 24px; }
     .cal-title { font-size: 17px; font-weight: 800; color: #2D5F8A; }
     .cal-dow-grid, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
     .cal-dow { text-align: center; font-size: 11px; color: #97A3AE; padding: 4px 0; font-weight: 700; }
@@ -112,6 +110,20 @@
     .cal-day.start, .cal-day.end { background: #2D5F8A !important; color: #fff !important; font-weight: 800; }
     .cal-day.in-range { background: #C6DCF2; color: #0C447C; border-radius: 0; }
     .cal-day.empty { pointer-events: none; }
+    .cal-day { flex-direction: column; gap: 3px; }
+    .cal-mark { width: 70%; height: 5px; border-radius: 3px; }
+    .cal-mark.editing { opacity: .35; }
+    .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px #fff; }
+    .cal-day.conflict { background: #FDE2E2; color: #B71C1C; }
+    .cal-day.conflict.start, .cal-day.conflict.end { box-shadow: inset 0 0 0 3px #E53935; }
+    .cal-status { grid-column: 1 / -1; text-align: center; color: #97A3AE; font-size: 14px; font-weight: 700; padding: 28px 0; }
+    .range-info.warn { color: #C62828; }
+    .booked-list { margin-top: 12px; border-top: 1px dashed #E3E9EE; padding-top: 10px; font-size: 13px; }
+    .booked-head { font-weight: 700; color: #6B7986; margin-bottom: 4px; }
+    .booked-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: #26323D; font-weight: 600; }
+    .booked-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .booked-note { color: #97A3AE; font-weight: 600; padding: 4px 0; }
+    .btn-retry { margin-left: 8px; padding: 6px 12px; border: 1.5px solid #2D5F8A; border-radius: 8px; background: #fff; color: #2D5F8A; font-size: 13px; font-weight: 700; }
     .range-info { text-align: center; margin-top: 10px; font-size: 14px; font-weight: 700; color: #97A3AE; min-height: 20px; }
     .range-info.set { color: #2D5F8A; }
 
@@ -215,9 +227,7 @@
         <span class="step-done-summary" id="stepsum-date"></span>
       </div>
       <div class="cal-header">
-        <button class="cal-nav" onclick="changeMonth(-1)">◀</button>
         <span class="cal-title" id="calTitle"></span>
-        <button class="cal-nav" onclick="changeMonth(1)">▶</button>
       </div>
       <div class="cal-dow-grid">
         <div class="cal-dow">月</div><div class="cal-dow">火</div><div class="cal-dow">水</div>
@@ -225,7 +235,8 @@
         <div class="cal-dow sat">土</div><div class="cal-dow sun">日</div>
       </div>
       <div class="cal-grid" id="calGrid"></div>
-      <div class="range-info" id="rangeInfo">開始日をタップ</div>
+      <div class="range-info" id="rangeInfo"></div>
+      <div class="booked-list" id="bookedList" style="display:none;"></div>
     </div>
 
     <div class="card" id="step-place">
@@ -276,6 +287,17 @@
   // 修正モードのとき、どのレコードを書き換えるのかを保持する。
   // これを送らないとGAS側が元の行を特定できず、新規追加になってしまう。
   var editOriginal = null;
+
+  // カレンダーはシフト表（GAS）の月に固定する。読み込むまで日付は押せない。
+  var monthLoaded = false, monthError = '';
+  // 選択中の名前の登録済み予定（getMyShifts の結果）。入力タブと確認タブで共有する。
+  var shiftCache = { name: null, list: null, error: null, promise: null };
+
+  var NAME_KEY = 'shiftform.name';
+  var TORIHIKI_COLORS = {
+    '南国殖産': '#2E7D32', 'ハイコム': '#E65100', 'サンコミ': '#6A1B9A',
+    'ダル': '#00838F', 'NOON': '#AD1457'
+  };
 
   // 名前の正規リスト（チップの data-value が唯一の定義元）
   var VALID_NAMES = Array.prototype.map.call(
@@ -329,32 +351,133 @@
     });
   }
 
-  // GASの応答（コールドスタートで数秒かかる）を待たずに、まず今月を表示する。
-  // 以前は応答前に◀▶を押すと calYear/calMonth が undefined のまま計算され
-  // 「undefined年NaN月」になっていた。
-  var today = new Date();
-  calYear = today.getFullYear();
-  calMonth = today.getMonth() + 1;
-  var calTouched = false;  // ユーザーが月移動・日付選択・修正をしたら true
-  renderCal();
+  // ── シフト表の月を読み込む ──────────────────────────────
+  // GASが書き込めるのはシフト表の月だけなので、カレンダーもその月に固定する。
+  // 読み込みが終わるまでは日付を押せないようにして、未確定の月で送られるのを防ぐ。
+  function loadMonth() {
+    monthError = '';
+    renderCal();
+    callApi('getMonthInfo')
+      .then(function(info) {
+        // "2026" や "9月" のような文字列でも受け付ける。
+        var y = parseInt(info && info.year, 10);
+        var m = parseInt(info && info.month, 10);
+        if (!y || !(m >= 1 && m <= 12)) throw new Error('シフト表の年月（A1・B1）を読み取れませんでした');
+        calYear = y;
+        calMonth = m;
+        monthLoaded = true;
+        renderCal();
+        updateSummary();
+        updateProgress();
+      })
+      .catch(function(err) {
+        monthError = err.message;
+        renderCal();
+      });
+  }
 
-  callApi('getMonthInfo')
-    .then(function(info) {
-      // "2026" や "9月" のような文字列でも受け付け、不正な値なら今月のままにする。
-      var y = parseInt(info && info.year, 10);
-      var m = parseInt(info && info.month, 10);
-      if (!y || !(m >= 1 && m <= 12)) return;
-      // 応答待ちの間にユーザーが操作していたら上書きしない。
-      if (calTouched || editMode) return;
-      calYear = y;
-      calMonth = m;
-      renderCal();
-      updateSummary();
-    })
-    .catch(function(err) {
-      // カレンダーは今月で使えるので、取得失敗は表示を残すだけにする。
-      console.warn('getMonthInfo 失敗: ' + err.message);
+  // ── 登録済みの予定を読み込む ────────────────────────────
+  // force=false なら読み込み済みの結果を使い回す。読み込み中なら同じ通信を待つ。
+  function fetchMyShifts(name, force) {
+    if (shiftCache.name === name) {
+      if (shiftCache.promise) return shiftCache.promise;
+      if (!force && shiftCache.list) return Promise.resolve(shiftCache.list);
+    }
+    var p = callApi('getMyShifts', { name: name }).then(function(list) {
+      if (shiftCache.promise === p) {
+        shiftCache.list = list || [];
+        shiftCache.promise = null;
+        onShiftsUpdated();
+      }
+      return list || [];
+    }, function(err) {
+      if (shiftCache.promise === p) {
+        shiftCache.error = err;
+        shiftCache.promise = null;
+        onShiftsUpdated();
+      }
+      throw err;
     });
+    shiftCache = { name: name, list: null, error: null, promise: p };
+    onShiftsUpdated();
+    return p;
+  }
+
+  function onShiftsUpdated() {
+    renderCal();
+  }
+
+  // 表示中の月の予定（今の名前の分だけ）
+  function monthShifts() {
+    if (!monthLoaded || !shiftCache.list || shiftCache.name !== sel.name) return [];
+    return shiftCache.list.filter(function(s) {
+      return Number(s.year) === calYear && Number(s.month) === calMonth;
+    });
+  }
+
+  // 修正中の予定そのもの。GAS側で先に消してから書くので、重複扱いにしない。
+  function isEditingShift(s) {
+    return !!(editMode && editOriginal &&
+      Number(s.startDay) === Number(editOriginal.startDay) &&
+      Number(s.endDay) === Number(editOriginal.endDay) &&
+      s.torihiki === editOriginal.torihiki);
+  }
+
+  function bookedByDay() {
+    var map = {};
+    monthShifts().forEach(function(s) {
+      for (var d = Number(s.startDay); d <= Number(s.endDay); d++) map[d] = s;
+    });
+    return map;
+  }
+
+  // from〜to のうち、既に別の予定が入っている日
+  function findConflicts(from, to) {
+    var booked = bookedByDay(), out = [];
+    for (var d = from; d <= to; d++) {
+      if (booked[d] && !isEditingShift(booked[d])) out.push({ day: d, shift: booked[d] });
+    }
+    return out;
+  }
+
+  // 連続した同じ予定はまとめて「6〜7日 南国殖産（下通）」の形にする
+  function describeConflicts(conf) {
+    var groups = [];
+    conf.forEach(function(c) {
+      var g = groups[groups.length - 1];
+      if (g && g.shift === c.shift && g.to === c.day - 1) g.to = c.day;
+      else groups.push({ shift: c.shift, from: c.day, to: c.day });
+    });
+    return groups.map(function(g) {
+      return (g.from === g.to ? g.from + '日' : g.from + '〜' + g.to + '日') + ' ' +
+        g.shift.torihiki + (g.shift.place ? '（' + g.shift.place + '）' : '');
+    });
+  }
+
+  function torihikiColor(t) {
+    return TORIHIKI_COLORS[t] || '#78909C';
+  }
+
+  // ── 名前（入力タブと確認タブで共通。次回のために端末に覚える）──
+  function loadSavedName() {
+    try {
+      var v = localStorage.getItem(NAME_KEY);
+      return (v && VALID_NAMES.indexOf(v) !== -1) ? v : null;
+    } catch (e) { return null; }
+  }
+  function saveName(v) {
+    try { localStorage.setItem(NAME_KEY, v); } catch (e) {}
+  }
+  function setName(v) {
+    sel.name = v;
+    confirmName = v;
+    selectChip('chips-name', v);
+    selectChip('chips-confirm-name', v);
+    if (!staffFromUrl) saveName(v);
+    fetchMyShifts(v);
+    updateSummary();
+    updateProgress();
+  }
 
   // ===== チップ選択のセットアップ =====
   function setupChips(containerId, key, onChange) {
@@ -371,8 +494,8 @@
     });
   }
 
-  setupChips('chips-name', 'name', function() {
-    updateProgress();
+  setupChips('chips-name', 'name', function(v) {
+    setName(v);
     if (!editMode) scrollToNextAfter('name');
   });
   setupChips('chips-torihiki', 'torihiki', function(v) {
@@ -398,18 +521,9 @@
     if (!editMode) scrollToNextAfter('carrier');
   });
   setupChips('chips-confirm-name', null, function(v) {
-    confirmName = v;
+    setName(v);
     loadMyShifts();
   });
-
-  if (staffFromUrl) {
-    sel.name = staffFromUrl;
-    confirmName = staffFromUrl;
-    document.getElementById('step-name').style.display = 'none';
-    selectChip('chips-name', staffFromUrl);
-    selectChip('chips-confirm-name', staffFromUrl);
-    updateSummary();
-  }
 
   function selectChip(containerId, value) {
     var container = document.getElementById(containerId);
@@ -513,6 +627,17 @@
 
   updateProgress();
 
+  // ===== 起動時の処理 =====
+  // URLの ?staff= があればそれを使い、無ければ前回選んだ名前を復元する。
+  if (staffFromUrl) {
+    document.getElementById('step-name').style.display = 'none';
+    setName(staffFromUrl);
+  } else {
+    var savedName = loadSavedName();
+    if (savedName) setName(savedName);
+  }
+  loadMonth();
+
   // ===== タブ切替 =====
   function switchTab(tab) {
     document.getElementById('tab-input').classList.toggle('active', tab === 'input');
@@ -524,24 +649,41 @@
   }
 
   // ===== カレンダー =====
-  function changeMonth(d) {
-    calTouched = true;
-    calMonth += d;
-    if (calMonth > 12) { calMonth = 1; calYear++; }
-    if (calMonth < 1) { calMonth = 12; calYear--; }
-    startDay = null; endDay = null;
-    renderCal();
-    updateSummary();
-    updateProgress();
-  }
-
   function renderCal() {
-    document.getElementById('calTitle').textContent = calYear + '年' + calMonth + '月';
     var grid = document.getElementById('calGrid');
+    var title = document.getElementById('calTitle');
     grid.innerHTML = '';
+
+    if (!monthLoaded) {
+      title.textContent = '';
+      var st = document.createElement('div');
+      st.className = 'cal-status';
+      if (monthError) {
+        st.textContent = '⚠️ 読み込みエラー: ' + monthError;
+        var retry = document.createElement('button');
+        retry.className = 'btn-retry';
+        retry.textContent = '再試行';
+        retry.onclick = loadMonth;
+        st.appendChild(document.createElement('br'));
+        st.appendChild(retry);
+      } else {
+        st.textContent = 'シフト表を読み込み中…';
+      }
+      grid.appendChild(st);
+      document.getElementById('rangeInfo').textContent = '';
+      renderBookedList();
+      return;
+    }
+
+    title.textContent = calYear + '年' + calMonth + '月';
     var firstWd = new Date(calYear, calMonth - 1, 1).getDay();
     var offset = (firstWd === 0) ? 6 : firstWd - 1;
     var daysInMonth = new Date(calYear, calMonth, 0).getDate();
+    var booked = bookedByDay();
+    var conflictDays = {};
+    if (startDay) {
+      findConflicts(startDay, endDay || startDay).forEach(function(c) { conflictDays[c.day] = true; });
+    }
 
     for (var i = 0; i < offset; i++) {
       var blank = document.createElement('div');
@@ -552,15 +694,25 @@
       (function(day) {
         var wd = new Date(calYear, calMonth - 1, day).getDay();
         var div = document.createElement('div');
-        div.textContent = day;
         div.className = 'cal-day';
+        var num = document.createElement('span');
+        num.textContent = day;
+        div.appendChild(num);
         if (wd === 6) div.classList.add('sat');
         if (wd === 0) div.classList.add('sun');
         if (startDay && endDay && day > startDay && day < endDay) div.classList.add('in-range');
         if (startDay && day === startDay) div.classList.add('start');
         if (endDay && day === endDay) div.classList.add('end');
+        if (conflictDays[day]) div.classList.add('conflict');
+        // 登録済みの予定は取引先の色の帯で示す
+        var s = booked[day];
+        if (s) {
+          var mark = document.createElement('span');
+          mark.className = 'cal-mark' + (isEditingShift(s) ? ' editing' : '');
+          mark.style.background = torihikiColor(s.torihiki);
+          div.appendChild(mark);
+        }
         div.onclick = function() {
-          calTouched = true;
           var wasComplete = !!(startDay && endDay);
           if (!startDay || (startDay && endDay)) {
             startDay = day; endDay = null;
@@ -569,7 +721,6 @@
             else { endDay = day; }
           }
           if (navigator.vibrate) navigator.vibrate(10);
-          updateRangeInfo();
           renderCal();
           updateSummary();
           updateProgress();
@@ -581,20 +732,78 @@
       })(d);
     }
     updateRangeInfo();
+    renderBookedList();
   }
 
   function updateRangeInfo() {
     var el = document.getElementById('rangeInfo');
+    var text, cls = 'range-info';
     if (startDay && endDay) {
-      el.className = 'range-info set';
-      el.textContent = calMonth + '月' + startDay + '日 〜 ' + calMonth + '月' + endDay + '日（' + (endDay - startDay + 1) + '日間）';
+      cls += ' set';
+      text = calMonth + '月' + startDay + '日 〜 ' + calMonth + '月' + endDay + '日（' + (endDay - startDay + 1) + '日間）';
     } else if (startDay) {
-      el.className = 'range-info set';
-      el.textContent = calMonth + '月' + startDay + '日 → 終了日をタップ（1日だけならもう一度同じ日）';
+      cls += ' set';
+      text = calMonth + '月' + startDay + '日 → 終了日をタップ（1日だけならもう一度同じ日）';
     } else {
-      el.className = 'range-info';
-      el.textContent = '開始日をタップ';
+      text = '開始日をタップ';
     }
+    if (startDay) {
+      var conf = findConflicts(startDay, endDay || startDay);
+      if (conf.length) {
+        cls = 'range-info warn';
+        text += '\n⚠️ 予定あり: ' + describeConflicts(conf).join('、') + '（送信すると上書きされます）';
+      }
+    }
+    el.className = cls;
+    el.style.whiteSpace = 'pre-line';
+    el.textContent = text;
+  }
+
+  // カレンダーの下に「登録済みの予定」を一覧表示する
+  function renderBookedList() {
+    var el = document.getElementById('bookedList');
+    el.innerHTML = '';
+    if (!sel.name || !monthLoaded) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+
+    var head = document.createElement('div');
+    head.className = 'booked-head';
+    head.textContent = sel.name + 'さんの登録済みの予定';
+    el.appendChild(head);
+
+    function note(text) {
+      var n = document.createElement('div');
+      n.className = 'booked-note';
+      n.textContent = text;
+      el.appendChild(n);
+      return n;
+    }
+
+    if (shiftCache.name !== sel.name || shiftCache.promise) { note('読み込み中…'); return; }
+    if (shiftCache.error) {
+      var n = note('読み込めませんでした');
+      var retry = document.createElement('button');
+      retry.className = 'btn-retry';
+      retry.textContent = '再試行';
+      retry.onclick = function() { fetchMyShifts(sel.name, true); };
+      n.appendChild(retry);
+      return;
+    }
+    var list = monthShifts();
+    if (!list.length) { note('この月の予定はまだありません'); return; }
+    list.forEach(function(s) {
+      var item = document.createElement('div');
+      item.className = 'booked-item';
+      var dot = document.createElement('span');
+      dot.className = 'booked-dot';
+      dot.style.background = torihikiColor(s.torihiki);
+      var txt = document.createElement('span');
+      var range = Number(s.startDay) === Number(s.endDay) ? s.startDay + '日' : s.startDay + '〜' + s.endDay + '日';
+      txt.textContent = range + '　' + s.torihiki + (s.place ? '・' + s.place : '') + (isEditingShift(s) ? '（修正中）' : '');
+      item.appendChild(dot);
+      item.appendChild(txt);
+      el.appendChild(item);
+    });
   }
 
   // ===== 送信バーのサマリー =====
@@ -629,39 +838,55 @@
     if (!data.carrier) { showError('キャリアを選択してください'); return; }
     if (!startDay) { showError('期間を選択してください'); return; }
     if (!data.place) { showError('開催場所を入力してください'); return; }
+    if (!monthLoaded) { showError('シフト表の読み込みが終わってから送信してください'); return; }
 
     resultEl.className = '';
-    resultEl.textContent = '送信中...';
+    resultEl.textContent = '確認中...';
     btn.disabled = true;
 
     var payload = { data: data };
     // 修正モードでは元レコードのキーを付ける（GAS側で該当行を更新するために必要）
     if (editMode && editOriginal) payload.original = editOriginal;
 
-    callApi('submitShift', payload)
-      .then(function() {
-        resultEl.className = 'success';
-        resultEl.textContent = '✅ 送信完了しました！';
-        btn.disabled = false;
-        if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-
-        startDay = null; endDay = null;
-        document.getElementById('place').value = '';
-        document.getElementById('hotel').value = '';
-        renderCal();
-        updateSummary();
-        updateProgress();
-
-        exitEditMode();
-
-        scrollToStep('date');
-
-        setTimeout(function() { resultEl.textContent = ''; }, 3000);
-      })
-      .catch(function(err) {
-        showError(err.message);
-        btn.disabled = false;
+    // GASは既存の予定を黙って上書きするので、重なる日があれば先に確認する
+    confirmOverwrite(data.startDay, data.endDay)
+      .then(function(ok) {
+        if (!ok) {
+          resultEl.textContent = '';
+          btn.disabled = false;
+          return;
+        }
+        resultEl.textContent = '送信中...';
+        return sendShift();
       });
+
+    function sendShift() {
+      return callApi('submitShift', payload)
+        .then(function() {
+          resultEl.className = 'success';
+          resultEl.textContent = '✅ 送信完了しました！';
+          btn.disabled = false;
+          if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
+          startDay = null; endDay = null;
+          document.getElementById('place').value = '';
+          document.getElementById('hotel').value = '';
+          renderCal();
+          updateSummary();
+          updateProgress();
+
+          exitEditMode();
+          fetchMyShifts(sel.name, true);
+
+          scrollToStep('date');
+
+          setTimeout(function() { resultEl.textContent = ''; }, 3000);
+        })
+        .catch(function(err) {
+          showError(err.message);
+          btn.disabled = false;
+        });
+    }
 
     function showError(msg) {
       resultEl.className = 'error-msg';
@@ -670,12 +895,24 @@
     }
   }
 
+  // 重なる予定があれば上書きしてよいか聞く。true なら送信してよい。
+  function confirmOverwrite(from, to) {
+    return fetchMyShifts(sel.name).then(function() {
+      var conf = findConflicts(from, to);
+      if (!conf.length) return true;
+      return confirm('次の日には既に予定が入っています。\n\n' + describeConflicts(conf).join('\n') +
+                     '\n\n送信すると上書きされます。よろしいですか？');
+    }, function() {
+      return confirm('登録済みの予定を確認できませんでした（通信エラー）。\nこのまま送信しますか？');
+    });
+  }
+
   // ===== 確認・修正 =====
   function loadMyShifts() {
     var listEl = document.getElementById('shift-list');
     if (!confirmName) { listEl.innerHTML = '<div class="empty-msg">上から名前を選択してください</div>'; return; }
     listEl.innerHTML = '<div class="loading-msg">読み込み中...</div>';
-    callApi('getMyShifts', { name: confirmName })
+    fetchMyShifts(confirmName, true)
       .then(function(shifts) { renderShiftList(shifts); })
       .catch(function(err) {
         listEl.innerHTML = '<div class="empty-msg">❌ 読み込みエラー: ' + err.message + '<br><button class="btn-submit" style="margin-top:10px;max-width:200px;padding:10px;font-size:13px;" onclick="loadMyShifts()">再試行</button></div>';
@@ -720,14 +957,8 @@
     selectChip('chips-carrier', shift.carrier);
     document.getElementById('place').value = shift.place;
     document.getElementById('hotel').value = shift.hotel || '';
-    calYear = parseInt(shift.year, 10);
-    calMonth = parseInt(shift.month, 10);
-    calTouched = true;
-    startDay = shift.startDay;
-    endDay = shift.endDay;
-    renderCal();
-    updateSummary();
-    updateProgress();
+    startDay = Number(shift.startDay);
+    endDay = Number(shift.endDay);
 
     editMode = true;
     editOriginal = {
@@ -741,6 +972,9 @@
       torihiki: shift.torihiki
     };
     document.getElementById('edit-banner').classList.add('show');
+    renderCal();
+    updateSummary();
+    updateProgress();
 
     var resultEl = document.getElementById('result');
     resultEl.className = '';
@@ -752,6 +986,7 @@
     editMode = false;
     editOriginal = null;
     document.getElementById('edit-banner').classList.remove('show');
+    renderCal();
   }
 
   function cancelEdit() {
