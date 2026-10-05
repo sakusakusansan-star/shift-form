@@ -329,15 +329,31 @@
     });
   }
 
+  // GASの応答（コールドスタートで数秒かかる）を待たずに、まず今月を表示する。
+  // 以前は応答前に◀▶を押すと calYear/calMonth が undefined のまま計算され
+  // 「undefined年NaN月」になっていた。
+  var today = new Date();
+  calYear = today.getFullYear();
+  calMonth = today.getMonth() + 1;
+  var calTouched = false;  // ユーザーが月移動・日付選択・修正をしたら true
+  renderCal();
+
   callApi('getMonthInfo')
     .then(function(info) {
-      calYear = info.year;
-      calMonth = info.month;
+      // "2026" や "9月" のような文字列でも受け付け、不正な値なら今月のままにする。
+      var y = parseInt(info && info.year, 10);
+      var m = parseInt(info && info.month, 10);
+      if (!y || !(m >= 1 && m <= 12)) return;
+      // 応答待ちの間にユーザーが操作していたら上書きしない。
+      if (calTouched || editMode) return;
+      calYear = y;
+      calMonth = m;
       renderCal();
+      updateSummary();
     })
     .catch(function(err) {
-      document.getElementById('calGrid').innerHTML = '';
-      document.getElementById('rangeInfo').textContent = '読み込みエラー: ' + err.message;
+      // カレンダーは今月で使えるので、取得失敗は表示を残すだけにする。
+      console.warn('getMonthInfo 失敗: ' + err.message);
     });
 
   // ===== チップ選択のセットアップ =====
@@ -509,6 +525,7 @@
 
   // ===== カレンダー =====
   function changeMonth(d) {
+    calTouched = true;
     calMonth += d;
     if (calMonth > 12) { calMonth = 1; calYear++; }
     if (calMonth < 1) { calMonth = 12; calYear--; }
@@ -543,6 +560,7 @@
         if (startDay && day === startDay) div.classList.add('start');
         if (endDay && day === endDay) div.classList.add('end');
         div.onclick = function() {
+          calTouched = true;
           var wasComplete = !!(startDay && endDay);
           if (!startDay || (startDay && endDay)) {
             startDay = day; endDay = null;
@@ -702,8 +720,9 @@
     selectChip('chips-carrier', shift.carrier);
     document.getElementById('place').value = shift.place;
     document.getElementById('hotel').value = shift.hotel || '';
-    calYear = shift.year;
-    calMonth = shift.month;
+    calYear = parseInt(shift.year, 10);
+    calMonth = parseInt(shift.month, 10);
+    calTouched = true;
     startDay = shift.startDay;
     endDay = shift.endDay;
     renderCal();
