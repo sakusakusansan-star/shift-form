@@ -189,6 +189,7 @@
         <button class="chip" data-value="山口">山口</button>
         <button class="chip" data-value="鈴木">鈴木</button>
         <button class="chip" data-value="毛利">毛利</button>
+        <button class="chip" data-value="山内">山内</button>
       </div>
     </div>
 
@@ -203,6 +204,8 @@
         <button class="chip" data-value="ハイコム">ハイコム</button>
         <button class="chip" data-value="サンコミ">サンコミ</button>
         <button class="chip" data-value="ダル">ダル</button>
+        <button class="chip" data-value="NOON">NOON</button>
+        <button class="chip" data-value="九情">九情</button>
       </div>
     </div>
 
@@ -263,6 +266,7 @@
         <button class="chip" data-value="山口">山口</button>
         <button class="chip" data-value="鈴木">鈴木</button>
         <button class="chip" data-value="毛利">毛利</button>
+        <button class="chip" data-value="山内">山内</button>
       </div>
     </div>
     <div id="shift-list"></div>
@@ -296,7 +300,7 @@
   var NAME_KEY = 'shiftform.name';
   var TORIHIKI_COLORS = {
     '南国殖産': '#2E7D32', 'ハイコム': '#E65100', 'サンコミ': '#6A1B9A',
-    'ダル': '#00838F', 'NOON': '#AD1457'
+    'ダル': '#00838F', 'NOON': '#AD1457', '九情': '#1565C0'
   };
 
   // 名前の正規リスト（チップの data-value が唯一の定義元）
@@ -499,7 +503,7 @@
     if (!editMode) scrollToNextAfter('name');
   });
   setupChips('chips-torihiki', 'torihiki', function(v) {
-    var auto = { 'ハイコム': 'SoftBank', 'サンコミ': 'au' };
+    var auto = { 'ハイコム': 'SoftBank', 'サンコミ': 'au', '九情': 'au' };
     var badge = document.getElementById('auto-badge');
     if (auto[v]) {
       selectChip('chips-carrier', auto[v]);
