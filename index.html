@@ -279,6 +279,7 @@
     <div id="result"></div>
   </div>
 
+<script src="gas-client.js"></script>
 <script>
   // ▼▼▼ GASのWebアプリURL（/execで終わるもの） ▼▼▼
   var GAS_URL = "https://script.google.com/macros/s/AKfycbwx4-wjr4Qmx6zeXDXZhht-65W7veveJvaXXmC9V5MQLipOLxLoWfz-XEUBau8NZ58h/exec";
@@ -321,37 +322,24 @@
 
   var QUICK_PLACES = ['下通', 'ゆめタウン博多', 'ゆめタウン光の森', 'イオンモール熊本'];
 
-  // ── GASとの通信（共通関数）タイムアウト付き ─────────────────────────
+  // ── GASとの通信（共通関数） ─────────────────────────
+  // 一時的な404の再試行・HTMLが返ったときの説明・タイムアウトは gas-client.js が受け持つ。
+  // 読むだけの操作だけ自動でやり直す。送信・削除は送信ログが2行になるのでやり直さない。
+  var RETRY_SAFE_ACTIONS = { getMonthInfo: true, getMyShifts: true };
+
   function callApi(action, params, timeoutMs) {
-    timeoutMs = timeoutMs || 15000;
     var body = Object.assign({ action: action }, params || {});
-
-    return new Promise(function(resolve, reject) {
-      var timedOut = false;
-      var timer = setTimeout(function() {
-        timedOut = true;
-        reject(new Error('通信がタイムアウトしました（' + (timeoutMs/1000) + '秒）。電波状況を確認して再試行してください。'));
-      }, timeoutMs);
-
-      fetch(GAS_URL, {
-        method: 'POST',
-        body: JSON.stringify(body)
-      })
-        .then(function(res) { return res.json(); })
-        .then(function(json) {
-          if (timedOut) return;
-          clearTimeout(timer);
-          if (!json.ok) {
-            reject(new Error(json.error || '不明なエラー'));
-          } else {
-            resolve(json.data);
-          }
-        })
-        .catch(function(err) {
-          if (timedOut) return;
-          clearTimeout(timer);
-          reject(new Error('通信エラー: ' + err.message));
-        });
+    return GasClient.post(GAS_URL, body, {
+      timeoutMs: timeoutMs || 30000,
+      retry: !!RETRY_SAFE_ACTIONS[action]
+    }).then(function(json) {
+      if (!json || !json.ok) throw new Error((json && json.error) || '不明なエラー');
+      return json.data;
+    }, function(err) {
+      if (err.maybeDone) {
+        err.message += '（シフト表には反映済みの場合があります。もう一度送る前に「確認・修正」タブで確かめてください）';
+      }
+      throw err;
     });
   }
 
