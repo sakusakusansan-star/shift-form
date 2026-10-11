@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>シフト入力</title>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
@@ -50,8 +50,23 @@
     .card.done { border-color: #C8E6C9; }
     .card-label {
       font-size: 13px; font-weight: 700; color: #6B7986; margin-bottom: 10px;
-      display: flex; align-items: center; gap: 8px;
+      display: flex; align-items: center; gap: 8px; min-height: 30px;
     }
+    /* 完了したステップは1行にたたむ */
+    .card.collapsed { padding: 10px 14px; }
+    .card.collapsed .card-label { margin-bottom: 0; cursor: pointer; }
+    .card.collapsed .chips, .card.collapsed .auto-badge { display: none !important; }
+    .step-change {
+      display: none; flex-shrink: 0; border: 1.5px solid #DDE4EA; background: #fff; color: #2D5F8A;
+      border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 700;
+    }
+    .card.collapsed .step-change { display: inline-block; }
+    /* 未入力の項目へ移動したときの目印 */
+    @keyframes attention {
+      0%, 100% { border-color: transparent; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
+      25%, 75% { border-color: #F5A623; box-shadow: 0 0 0 4px rgba(245,166,35,.22); }
+    }
+    .card.attention { animation: attention 1.3s ease; }
     .step-num {
       display: inline-flex; align-items: center; justify-content: center;
       width: 22px; height: 22px; border-radius: 50%; background: #2D5F8A; color: #fff;
@@ -63,6 +78,7 @@
       font-size: 12.5px; font-weight: 700; color: #2E7D32;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: right;
     }
+    .step-done-summary.partial { color: #2D5F8A; }
 
     /* ===== チップボタン（選択式）===== */
     .chips { display: grid; gap: 8px; }
@@ -133,15 +149,84 @@
       background: rgba(255,255,255,.97); padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
       box-shadow: 0 -2px 12px rgba(0,0,0,.1);
     }
-    .summary { font-size: 12px; color: #6B7986; margin-bottom: 8px; text-align: center; min-height: 15px; font-weight: 600; }
+    .summary {
+      font-size: 12px; color: #6B7986; margin-bottom: 8px; text-align: center; font-weight: 600;
+      height: 15px; line-height: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
     .btn-submit {
-      width: 100%; padding: 16px; background: #2D5F8A; color: #fff; border: none;
-      border-radius: 12px; font-size: 17px; font-weight: 800; min-height: 54px;
+      width: 100%; padding: 0 16px; background: #2D5F8A; color: #fff; border: none;
+      border-radius: 12px; font-size: 17px; font-weight: 800; height: 54px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      overflow: hidden; white-space: nowrap; transition: background .2s ease, color .2s ease;
     }
     .btn-submit:active { background: #1a4a6e; transform: scale(.98); }
-    .btn-submit:disabled { background: #B8C4CE; }
-    #result { text-align: center; font-size: 14px; font-weight: 700; min-height: 18px; margin-top: 6px; }
-    .success { color: #2E7D32; } .error-msg { color: #C62828; }
+    .btn-submit.pending { background: #E4ECF3; color: #2D5F8A; font-size: 15px; }
+    .btn-submit.pending:active { background: #D5E1EC; }
+    .btn-submit:disabled { background: #5A80A3; transform: none; }
+    .spinner {
+      width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+      border: 2.5px solid rgba(255,255,255,.4); border-top-color: #fff; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ===== トースト ===== */
+    .toast {
+      position: fixed; left: 16px; right: 16px; bottom: calc(108px + env(safe-area-inset-bottom));
+      max-width: 440px; margin: 0 auto; z-index: 90;
+      background: #26323D; color: #fff; border-radius: 12px; padding: 12px 16px;
+      font-size: 14px; font-weight: 700; text-align: center; line-height: 1.5;
+      box-shadow: 0 6px 20px rgba(0,0,0,.2);
+      opacity: 0; transform: translateY(8px); pointer-events: none; transition: opacity .2s ease, transform .2s ease;
+    }
+    .toast.show { opacity: 1; transform: none; }
+    .toast.error { background: #C62828; }
+    body.no-bar .toast { bottom: calc(20px + env(safe-area-inset-bottom)); }
+
+    /* ===== ダイアログ（下から出るシート）===== */
+    .overlay {
+      position: fixed; inset: 0; z-index: 100; background: rgba(20,30,40,.45);
+      display: flex; align-items: flex-end; justify-content: center;
+      opacity: 0; transition: opacity .2s ease;
+    }
+    .overlay.show { opacity: 1; }
+    .sheet {
+      background: #fff; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto;
+      border-radius: 20px 20px 0 0; padding: 24px 18px calc(18px + env(safe-area-inset-bottom));
+      transform: translateY(32px); transition: transform .22s ease; outline: none;
+    }
+    .overlay.show .sheet { transform: none; }
+    .sheet-icon {
+      width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sheet-icon.check { background: #E8F5E9; color: #2E7D32; }
+    .sheet-icon.warn { background: #FFF3E0; color: #E65100; }
+    .sheet-icon.trash { background: #FDECEC; color: #C62828; }
+    .sheet-icon svg { width: 30px; height: 30px; }
+    .sheet-title { font-size: 19px; font-weight: 800; text-align: center; color: #26323D; }
+    .sheet-text { font-size: 14px; color: #4A5865; line-height: 1.6; margin-top: 6px; text-align: center; }
+    .sheet-body { margin-top: 16px; }
+    .sheet-actions { display: grid; gap: 8px; margin-top: 20px; }
+    .btn { min-height: 52px; border: none; border-radius: 12px; font-size: 16px; font-weight: 800; }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: #2D5F8A; color: #fff; }
+    .btn-danger { background: #D32F2F; color: #fff; }
+    .btn-ghost { background: #EEF2F6; color: #4A5865; }
+
+    .conf-list { display: grid; gap: 6px; }
+    .conf-item {
+      display: flex; align-items: center; gap: 10px; padding: 11px 12px;
+      background: #FDECEC; border-radius: 10px; color: #B71C1C; font-size: 14px; font-weight: 700;
+    }
+    .sum-card { background: #F6F8FA; border-left: 5px solid #78909C; border-radius: 12px; padding: 12px 14px; }
+    .sum-date { font-size: 17px; font-weight: 800; color: #2D5F8A; margin-bottom: 6px; }
+    .sum-row { display: flex; gap: 10px; font-size: 14px; font-weight: 600; padding: 2px 0; }
+    .sum-row span:first-child { color: #97A3AE; font-size: 12px; width: 56px; flex-shrink: 0; padding-top: 2px; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .overlay, .sheet, .toast, .btn-submit { transition: none; }
+      .card.attention { animation: none; border-color: #F5A623; }
+    }
 
     /* ===== 確認タブ ===== */
     .shift-item { border: 1px solid #E3E9EE; border-radius: 12px; padding: 14px; margin-bottom: 10px; background: #FAFBFC; }
@@ -184,6 +269,7 @@
         <span class="step-num" id="stepnum-name">1</span>
         <span class="step-label-text">名前</span>
         <span class="step-done-summary" id="stepsum-name"></span>
+        <button type="button" class="step-change" aria-label="名前を変更">変更</button>
       </div>
       <div class="chips cols3" id="chips-name">
         <button class="chip" data-value="山口">山口</button>
@@ -198,6 +284,7 @@
         <span class="step-num" id="stepnum-torihiki">2</span>
         <span class="step-label-text">取引先</span>
         <span class="step-done-summary" id="stepsum-torihiki"></span>
+        <button type="button" class="step-change" aria-label="取引先を変更">変更</button>
       </div>
       <div class="chips cols2" id="chips-torihiki">
         <button class="chip" data-value="南国殖産">南国殖産</button>
@@ -215,6 +302,7 @@
         <span class="step-label-text">キャリア</span>
         <span class="auto-badge" id="auto-badge" style="display:none;">自動選択</span>
         <span class="step-done-summary" id="stepsum-carrier"></span>
+        <button type="button" class="step-change" aria-label="キャリアを変更">変更</button>
       </div>
       <div class="chips cols3" id="chips-carrier">
         <button class="chip" data-value="docomo">docomo</button>
@@ -276,8 +364,9 @@
   <div class="submit-bar" id="submit-bar">
     <div class="summary" id="summary"></div>
     <button class="btn-submit" id="btn-submit" onclick="submitForm()">送信する</button>
-    <div id="result"></div>
   </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
   // ▼▼▼ GASのWebアプリURL（/execで終わるもの） ▼▼▼
@@ -320,6 +409,12 @@
     : ['name', 'torihiki', 'carrier', 'date', 'place'];
 
   var QUICK_PLACES = ['下通', 'ゆめタウン博多', 'ゆめタウン光の森', 'イオンモール熊本'];
+
+  var STEP_LABELS = { name: '名前', torihiki: '取引先', carrier: 'キャリア', date: '期間', place: '開催場所' };
+  // 選び終わったら1行にたたむステップ。expanded[id] が true の間は開いたままにする。
+  var COLLAPSIBLE = { name: true, torihiki: true, carrier: true };
+  var expanded = {};
+  var submitting = false;
 
   // ── GASとの通信（共通関数）タイムアウト付き ─────────────────────────
   function callApi(action, params, timeoutMs) {
@@ -445,17 +540,21 @@
   }
 
   // 連続した同じ予定はまとめて「6〜7日 南国殖産（下通）」の形にする
-  function describeConflicts(conf) {
+  function groupConflicts(conf) {
     var groups = [];
     conf.forEach(function(c) {
       var g = groups[groups.length - 1];
       if (g && g.shift === c.shift && g.to === c.day - 1) g.to = c.day;
       else groups.push({ shift: c.shift, from: c.day, to: c.day });
     });
-    return groups.map(function(g) {
-      return (g.from === g.to ? g.from + '日' : g.from + '〜' + g.to + '日') + ' ' +
-        g.shift.torihiki + (g.shift.place ? '（' + g.shift.place + '）' : '');
-    });
+    return groups;
+  }
+  function describeConflictGroup(g) {
+    return (g.from === g.to ? g.from + '日' : g.from + '〜' + g.to + '日') + ' ' +
+      g.shift.torihiki + (g.shift.place ? '（' + g.shift.place + '）' : '');
+  }
+  function describeConflicts(conf) {
+    return groupConflicts(conf).map(describeConflictGroup);
   }
 
   function torihikiColor(t) {
@@ -498,9 +597,19 @@
     });
   }
 
+  // 選んだチップを一瞬見せてからたたみ、次の未入力ステップへ進む
+  function collapseAfterChoose(id) {
+    expanded[id] = true;
+    setTimeout(function() {
+      expanded[id] = false;
+      updateProgress();
+      if (!editMode) scrollToNextAfter(id);
+    }, 200);
+  }
+
   setupChips('chips-name', 'name', function(v) {
+    collapseAfterChoose('name');
     setName(v);
-    if (!editMode) scrollToNextAfter('name');
   });
   setupChips('chips-torihiki', 'torihiki', function(v) {
     var auto = { 'ハイコム': 'SoftBank', 'サンコミ': 'au', '九情': 'au' };
@@ -514,15 +623,25 @@
       if (carrierAutoSet) { clearChips('chips-carrier'); sel.carrier = ''; carrierAutoSet = false; }
       badge.style.display = 'none';
     }
+    collapseAfterChoose('torihiki');
     updateSummary();
     updateProgress();
-    if (!editMode) scrollToNextAfter('torihiki');
   });
   setupChips('chips-carrier', 'carrier', function() {
     carrierAutoSet = false;
     document.getElementById('auto-badge').style.display = 'none';
+    collapseAfterChoose('carrier');
     updateProgress();
-    if (!editMode) scrollToNextAfter('carrier');
+  });
+
+  // たたんだステップは見出しか「変更」を押すと開く
+  Object.keys(COLLAPSIBLE).forEach(function(id) {
+    var card = document.getElementById('step-' + id);
+    card.querySelector('.card-label').addEventListener('click', function() {
+      if (!card.classList.contains('collapsed')) return;
+      expanded[id] = true;
+      updateProgress();
+    });
   });
   setupChips('chips-confirm-name', null, function(v) {
     setName(v);
@@ -570,22 +689,30 @@
     return false;
   }
 
+  // 見出しの右に出す選択内容（完了の印は番号の ✓ で示す）
   function getSummaryText(id) {
-    if (id === 'name')     return sel.name ? ('✓ ' + sel.name) : '';
-    if (id === 'torihiki') return sel.torihiki ? ('✓ ' + sel.torihiki) : '';
-    if (id === 'carrier')  return sel.carrier ? ('✓ ' + sel.carrier + (carrierAutoSet ? '（自動）' : '')) : '';
+    if (id === 'name')     return sel.name;
+    if (id === 'torihiki') return sel.torihiki;
+    if (id === 'carrier')  return sel.carrier ? (sel.carrier + (carrierAutoSet ? '（自動）' : '')) : '';
     if (id === 'date') {
       if (!startDay) return '';
-      var txt = calMonth + '月' + startDay + '日' + (endDay && endDay !== startDay ? '〜' + endDay + '日' : '');
-      return endDay ? ('✓ ' + txt) : txt;
+      return calMonth + '月' + startDay + '日' + (endDay && endDay !== startDay ? '〜' + endDay + '日' : '');
     }
     if (id === 'place') {
       var p = document.getElementById('place').value;
       if (!p) return '';
       var h = document.getElementById('hotel').value;
-      return '✓ ' + (h ? (p + '（' + h + '）') : p);
+      return h ? (p + '（' + h + '）') : p;
     }
     return '';
+  }
+
+  function isCollapsed(id) {
+    return !!COLLAPSIBLE[id] && isStepComplete(id) && !expanded[id];
+  }
+
+  function missingSteps() {
+    return stepOrder.filter(function(id) { return !isStepComplete(id); });
   }
 
   function updateProgress() {
@@ -594,16 +721,71 @@
       var card = document.getElementById('step-' + id);
       var complete = isStepComplete(id);
       if (complete) completedCount++;
-      if (card) card.classList.toggle('done', complete);
+      if (card) {
+        card.classList.toggle('done', complete);
+        card.classList.toggle('collapsed', isCollapsed(id));
+        var changeBtn = card.querySelector('.step-change');
+        if (changeBtn) changeBtn.setAttribute('aria-expanded', String(!isCollapsed(id)));
+      }
       var numEl = document.getElementById('stepnum-' + id);
       if (numEl) numEl.textContent = complete ? '✓' : numEl.getAttribute('data-num');
       var sumEl = document.getElementById('stepsum-' + id);
-      if (sumEl) sumEl.textContent = getSummaryText(id);
+      if (sumEl) {
+        sumEl.textContent = getSummaryText(id);
+        sumEl.classList.toggle('partial', !complete);
+      }
     });
     document.getElementById('progress-count').textContent = completedCount;
     document.getElementById('progress-total').textContent = stepOrder.length;
     var pct = Math.round((completedCount / stepOrder.length) * 100);
     document.getElementById('progress-fill').style.width = pct + '%';
+    updateSubmitButton();
+  }
+
+  // 送信ボタンに「あと何が足りないか」を出す。押すとその項目へ移動する。
+  function updateSubmitButton() {
+    if (submitting) return;
+    var btn = document.getElementById('btn-submit');
+    var miss = missingSteps();
+    btn.disabled = false;
+    btn.classList.toggle('pending', miss.length > 0);
+    if (miss.length) {
+      // 4項目以上はボタンに収まらないので先頭2つだけ出す
+      var labels = miss.map(function(id) { return STEP_LABELS[id]; });
+      btn.textContent = 'あと' + miss.length + '項目：' +
+        (labels.length > 3 ? labels.slice(0, 2).join('・') + ' ほか' : labels.join('・'));
+    } else {
+      btn.textContent = editMode ? '修正を送信する' : 'この内容で送信する';
+    }
+  }
+
+  // label を渡すと処理中表示（スピナー付き）、false で通常に戻す
+  function setSubmitting(label) {
+    var btn = document.getElementById('btn-submit');
+    submitting = !!label;
+    if (!label) { updateSubmitButton(); return; }
+    btn.disabled = true;
+    btn.classList.remove('pending');
+    btn.innerHTML = '';
+    var sp = document.createElement('span');
+    sp.className = 'spinner';
+    btn.appendChild(sp);
+    btn.appendChild(document.createTextNode(label));
+  }
+
+  // 未入力のステップへ移動して目立たせる
+  function focusStep(id) {
+    var card = document.getElementById('step-' + id);
+    if (!card) return;
+    scrollToStep(id);
+    card.classList.remove('attention');
+    void card.offsetWidth; // アニメーションをやり直すため
+    card.classList.add('attention');
+    setTimeout(function() { card.classList.remove('attention'); }, 1400);
+    if (navigator.vibrate) navigator.vibrate(30);
+    if (id === 'place') {
+      setTimeout(function() { document.getElementById('place').focus({ preventScroll: true }); }, 450);
+    }
   }
 
   document.querySelectorAll('.step-num').forEach(function(el) {
@@ -649,6 +831,7 @@
     document.getElementById('page-input').classList.toggle('active', tab === 'input');
     document.getElementById('page-confirm').classList.toggle('active', tab === 'confirm');
     document.getElementById('submit-bar').style.display = (tab === 'input') ? 'block' : 'none';
+    document.body.classList.toggle('no-bar', tab !== 'input');
     if (tab === 'confirm') { exitEditMode(); loadMyShifts(); }
   }
 
@@ -824,8 +1007,11 @@
 
   // ===== 送信 =====
   function submitForm() {
-    var resultEl = document.getElementById('result');
-    var btn = document.getElementById('btn-submit');
+    if (submitting) return;
+    var miss = missingSteps();
+    if (miss.length) { focusStep(miss[0]); return; }
+    if (!monthLoaded) { showToast('シフト表の読み込みが終わってから送信してください', 'error'); return; }
+
     var data = {
       name: sel.name,
       torihiki: sel.torihiki,
@@ -837,66 +1023,57 @@
       year: calYear,
       month: calMonth
     };
-    if (!data.name) { showError('名前を選択してください'); return; }
-    if (!data.torihiki) { showError('取引先を選択してください'); return; }
-    if (!data.carrier) { showError('キャリアを選択してください'); return; }
-    if (!startDay) { showError('期間を選択してください'); return; }
-    if (!data.place) { showError('開催場所を入力してください'); return; }
-    if (!monthLoaded) { showError('シフト表の読み込みが終わってから送信してください'); return; }
-
-    resultEl.className = '';
-    resultEl.textContent = '確認中...';
-    btn.disabled = true;
+    if (!data.name) { showToast('名前を選択してください', 'error'); return; }
 
     var payload = { data: data };
     // 修正モードでは元レコードのキーを付ける（GAS側で該当行を更新するために必要）
     if (editMode && editOriginal) payload.original = editOriginal;
+    var wasEdit = editMode;
 
+    setSubmitting('確認中…');
     // GASは既存の予定を黙って上書きするので、重なる日があれば先に確認する
     confirmOverwrite(data.startDay, data.endDay)
       .then(function(ok) {
-        if (!ok) {
-          resultEl.textContent = '';
-          btn.disabled = false;
-          return;
-        }
-        resultEl.textContent = '送信中...';
-        return sendShift();
-      });
-
-    function sendShift() {
-      return callApi('submitShift', payload)
-        .then(function() {
-          resultEl.className = 'success';
-          resultEl.textContent = '✅ 送信完了しました！';
-          btn.disabled = false;
+        if (!ok) { setSubmitting(false); return; }
+        setSubmitting('送信中…');
+        return callApi('submitShift', payload).then(function() {
           if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
 
           startDay = null; endDay = null;
           document.getElementById('place').value = '';
           document.getElementById('hotel').value = '';
-          renderCal();
+          exitEditMode();
+          setSubmitting(false);
           updateSummary();
           updateProgress();
-
-          exitEditMode();
           fetchMyShifts(sel.name, true);
 
-          scrollToStep('date');
-
-          setTimeout(function() { resultEl.textContent = ''; }, 3000);
-        })
-        .catch(function(err) {
-          showError(err.message);
-          btn.disabled = false;
+          showDoneSheet(data, wasEdit);
         });
-    }
+      })
+      .catch(function(err) {
+        setSubmitting(false);
+        showToast('⚠️ ' + err.message, 'error');
+        if (navigator.vibrate) navigator.vibrate(80);
+      });
+  }
 
-    function showError(msg) {
-      resultEl.className = 'error-msg';
-      resultEl.textContent = '⚠️ ' + msg;
-      if (navigator.vibrate) navigator.vibrate(80);
-    }
+  // 送信完了のシート。続けて入力するか、確認タブへ行くかを選べる。
+  function showDoneSheet(data, wasEdit) {
+    showDialog({
+      icon: 'check',
+      title: wasEdit ? '修正しました' : '登録しました',
+      text: data.name + 'さんのシフトをシフト表に書き込みました。',
+      body: shiftSummaryNode(data),
+      actions: [
+        { label: '続けて別の日を入力', kind: 'primary', value: 'continue' },
+        { label: '確認タブで見る', kind: 'ghost', value: 'confirm' }
+      ],
+      cancelValue: 'continue'
+    }).then(function(v) {
+      if (v === 'confirm') { switchTab('confirm'); window.scrollTo(0, 0); }
+      else scrollToStep('date');
+    });
   }
 
   // 重なる予定があれば上書きしてよいか聞く。true なら送信してよい。
@@ -904,10 +1081,175 @@
     return fetchMyShifts(sel.name).then(function() {
       var conf = findConflicts(from, to);
       if (!conf.length) return true;
-      return confirm('次の日には既に予定が入っています。\n\n' + describeConflicts(conf).join('\n') +
-                     '\n\n送信すると上書きされます。よろしいですか？');
+      var list = document.createElement('div');
+      list.className = 'conf-list';
+      groupConflicts(conf).forEach(function(g) {
+        var item = document.createElement('div');
+        item.className = 'conf-item';
+        var dot = document.createElement('span');
+        dot.className = 'booked-dot';
+        dot.style.background = torihikiColor(g.shift.torihiki);
+        var txt = document.createElement('span');
+        txt.textContent = describeConflictGroup(g);
+        item.appendChild(dot);
+        item.appendChild(txt);
+        list.appendChild(item);
+      });
+      return showDialog({
+        icon: 'warn',
+        title: '予定が重なっています',
+        text: '次の日には既に予定が入っています。送信すると上書きされます。',
+        body: list,
+        actions: [
+          { label: '上書きして送信', kind: 'danger', value: true },
+          { label: 'やめる', kind: 'ghost', value: false, focus: true }
+        ],
+        cancelValue: false
+      });
     }, function() {
-      return confirm('登録済みの予定を確認できませんでした（通信エラー）。\nこのまま送信しますか？');
+      return showDialog({
+        icon: 'warn',
+        title: '予定を確認できませんでした',
+        text: '通信エラーのため、重なる予定があるか確認できませんでした。このまま送信しますか？',
+        actions: [
+          { label: 'このまま送信', kind: 'primary', value: true },
+          { label: 'やめる', kind: 'ghost', value: false, focus: true }
+        ],
+        cancelValue: false
+      });
+    });
+  }
+
+  // ===== 共通部品：ダイアログ・トースト・予定カード =====
+  var ICONS = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3z"/><path d="M12 10v4.5"/><path d="M12 17.5v.01"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6.5 7l1 13h9l1-13"/></svg>'
+  };
+
+  // 下から出るダイアログ。押されたボタンの value で resolve する。
+  function showDialog(opt) {
+    return new Promise(function(resolve) {
+      var prevFocus = document.activeElement;
+      var closed = false;
+      var ov = document.createElement('div');
+      ov.className = 'overlay';
+      var sh = document.createElement('div');
+      sh.className = 'sheet';
+      sh.setAttribute('role', 'dialog');
+      sh.setAttribute('aria-modal', 'true');
+      sh.tabIndex = -1;
+
+      if (opt.icon) {
+        var ic = document.createElement('div');
+        ic.className = 'sheet-icon ' + opt.icon;
+        ic.innerHTML = ICONS[opt.icon];
+        sh.appendChild(ic);
+      }
+      var t = document.createElement('div');
+      t.className = 'sheet-title';
+      t.id = 'sheet-title';
+      t.textContent = opt.title;
+      sh.appendChild(t);
+      sh.setAttribute('aria-labelledby', 'sheet-title');
+      if (opt.text) {
+        var tx = document.createElement('div');
+        tx.className = 'sheet-text';
+        tx.textContent = opt.text;
+        sh.appendChild(tx);
+      }
+      if (opt.body) {
+        var b = document.createElement('div');
+        b.className = 'sheet-body';
+        b.appendChild(opt.body);
+        sh.appendChild(b);
+      }
+      var acts = document.createElement('div');
+      acts.className = 'sheet-actions';
+      var focusEl = null;
+      opt.actions.forEach(function(a) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-' + a.kind;
+        btn.textContent = a.label;
+        btn.onclick = function() { close(a.value); };
+        if (a.focus) focusEl = btn;
+        acts.appendChild(btn);
+      });
+      sh.appendChild(acts);
+      ov.appendChild(sh);
+
+      function onKey(e) { if (e.key === 'Escape') close(opt.cancelValue); }
+      function close(v) {
+        if (closed) return;
+        closed = true;
+        document.removeEventListener('keydown', onKey);
+        ov.classList.remove('show');
+        document.body.style.overflow = '';
+        setTimeout(function() { ov.remove(); }, 220);
+        if (prevFocus && prevFocus.focus) prevFocus.focus({ preventScroll: true });
+        resolve(v);
+      }
+      ov.addEventListener('click', function(e) { if (e.target === ov) close(opt.cancelValue); });
+      document.addEventListener('keydown', onKey);
+
+      document.body.appendChild(ov);
+      document.body.style.overflow = 'hidden';
+      requestAnimationFrame(function() { ov.classList.add('show'); });
+      (focusEl || sh).focus({ preventScroll: true });
+    });
+  }
+
+  var toastTimer = null;
+  function showToast(msg, kind) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show' + (kind === 'error' ? ' error' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { el.className = 'toast' + (kind === 'error' ? ' error' : ''); },
+      kind === 'error' ? 4500 : 2500);
+  }
+
+  // 「9月12日(金)〜14日(日)」の形
+  function formatRange(y, m, from, to) {
+    y = Number(y); m = Number(m); from = Number(from); to = Number(to);
+    function wd(d) {
+      var dt = new Date(y, m - 1, d);
+      return isNaN(dt.getTime()) ? '' : '(' + '日月火水木金土'[dt.getDay()] + ')';
+    }
+    var txt = m + '月' + from + '日' + wd(from);
+    if (to && to !== from) txt += '〜' + to + '日' + wd(to);
+    return txt;
+  }
+
+  // 予定の中身をカードにする（完了シート・削除確認で使う）
+  function shiftSummaryNode(s) {
+    var card = document.createElement('div');
+    card.className = 'sum-card';
+    card.style.borderLeftColor = torihikiColor(s.torihiki);
+    var d = document.createElement('div');
+    d.className = 'sum-date';
+    d.textContent = formatRange(s.year, s.month, s.startDay, s.endDay);
+    card.appendChild(d);
+    [['取引先', s.torihiki], ['キャリア', s.carrier], ['開催場所', s.place], ['ホテル', s.hotel]]
+      .forEach(function(r) {
+        if (!r[1]) return;
+        var row = document.createElement('div');
+        row.className = 'sum-row';
+        var k = document.createElement('span');
+        k.textContent = r[0];
+        var v = document.createElement('span');
+        v.textContent = r[1];
+        row.appendChild(k);
+        row.appendChild(v);
+        card.appendChild(row);
+      });
+    return card;
+  }
+
+  function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
 
@@ -919,7 +1261,7 @@
     fetchMyShifts(confirmName, true)
       .then(function(shifts) { renderShiftList(shifts); })
       .catch(function(err) {
-        listEl.innerHTML = '<div class="empty-msg">❌ 読み込みエラー: ' + err.message + '<br><button class="btn-submit" style="margin-top:10px;max-width:200px;padding:10px;font-size:13px;" onclick="loadMyShifts()">再試行</button></div>';
+        listEl.innerHTML = '<div class="empty-msg">⚠️ 読み込みエラー: ' + escapeHtml(err.message) + '<br><button class="btn-retry" style="margin-top:10px;" onclick="loadMyShifts()">再試行</button></div>';
       });
   }
 
@@ -936,11 +1278,11 @@
       var dateStr = s.month + '月' + s.startDay + '日';
       if (s.startDay !== s.endDay) dateStr += ' 〜 ' + s.month + '月' + s.endDay + '日';
       html += '<div class="shift-item">';
-      html += '<div class="date-label">📅 ' + dateStr + '</div>';
-      html += '<div class="detail"><span>取引先</span>' + s.torihiki + '</div>';
-      html += '<div class="detail"><span>キャリア</span>' + s.carrier + '</div>';
-      html += '<div class="detail"><span>開催場所</span>' + s.place + '</div>';
-      if (s.hotel) html += '<div class="detail"><span>ホテル</span>' + s.hotel + '</div>';
+      html += '<div class="date-label">📅 ' + escapeHtml(dateStr) + '</div>';
+      html += '<div class="detail"><span>取引先</span>' + escapeHtml(s.torihiki) + '</div>';
+      html += '<div class="detail"><span>キャリア</span>' + escapeHtml(s.carrier) + '</div>';
+      html += '<div class="detail"><span>開催場所</span>' + escapeHtml(s.place) + '</div>';
+      if (s.hotel) html += '<div class="detail"><span>ホテル</span>' + escapeHtml(s.hotel) + '</div>';
       html += '<div class="shift-actions">';
       html += '<button class="btn-edit" onclick="editShift(' + i + ')">✏️ 修正</button>';
       html += '<button class="btn-delete" onclick="deleteShift(' + i + ')">🗑 削除</button>';
@@ -975,14 +1317,11 @@
       endDay: shift.endDay,
       torihiki: shift.torihiki
     };
+    expanded = {};
     document.getElementById('edit-banner').classList.add('show');
     renderCal();
     updateSummary();
     updateProgress();
-
-    var resultEl = document.getElementById('result');
-    resultEl.className = '';
-    resultEl.textContent = '✏️ 修正モード：変更して送信してください';
     window.scrollTo(0, 0);
   }
 
@@ -991,6 +1330,7 @@
     editOriginal = null;
     document.getElementById('edit-banner').classList.remove('show');
     renderCal();
+    updateSubmitButton();
   }
 
   function cancelEdit() {
@@ -998,7 +1338,6 @@
     startDay = null; endDay = null;
     document.getElementById('place').value = '';
     document.getElementById('hotel').value = '';
-    document.getElementById('result').textContent = '';
     renderCal();
     updateSummary();
     updateProgress();
@@ -1008,10 +1347,23 @@
 
   function deleteShift(i) {
     var s = loadedShifts[i];
-    var label = s.year + '年' + s.month + '月' + s.startDay + '日'
-              + (s.startDay !== s.endDay ? '〜' + s.endDay + '日' : '')
-              + '（' + s.torihiki + '）';
-    if (!confirm(confirmName + ' の ' + label + ' を削除しますか？')) return;
+    var name = confirmName;
+    showDialog({
+      icon: 'trash',
+      title: 'この予定を削除しますか？',
+      text: name + 'さんの予定をシフト表から消します。元に戻せません。',
+      body: shiftSummaryNode(s),
+      actions: [
+        { label: '削除する', kind: 'danger', value: true },
+        { label: 'やめる', kind: 'ghost', value: false, focus: true }
+      ],
+      cancelValue: false
+    }).then(function(ok) {
+      if (ok) doDelete(s, name);
+    });
+  }
+
+  function doDelete(s, confirmName) {
     // 年月と取引先まで送って対象行を一意に絞る。
     // これが無いと別の月の同じ日程まで消える恐れがある。
     callApi('deleteShift', {
@@ -1024,8 +1376,8 @@
       endDay: s.endDay,
       torihiki: s.torihiki
     })
-      .then(function() { loadMyShifts(); })
-      .catch(function(err) { alert('削除エラー: ' + err.message); });
+      .then(function() { showToast('削除しました'); loadMyShifts(); })
+      .catch(function(err) { showToast('⚠️ 削除エラー: ' + err.message, 'error'); });
   }
 </script>
 </body>
