@@ -280,6 +280,7 @@
   </div>
 
 <script src="gas-client.js"></script>
+<script src="sieg-nav.js"></script>
 <script>
   // ▼▼▼ GASのWebアプリURL（/execで終わるもの） ▼▼▼
   var GAS_URL = "https://script.google.com/macros/s/AKfycbwx4-wjr4Qmx6zeXDXZhht-65W7veveJvaXXmC9V5MQLipOLxLoWfz-XEUBau8NZ58h/exec";
@@ -625,7 +626,8 @@
     document.getElementById('step-name').style.display = 'none';
     setName(staffFromUrl);
   } else {
-    var savedName = loadSavedName();
+    // 前回選んだ名前 → ポータルで選んだ名前（パートナー様の一覧にある場合だけ）
+    var savedName = loadSavedName() || SiegNav.staff(VALID_NAMES);
     if (savedName) setName(savedName);
   }
   loadMonth();
