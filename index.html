@@ -4,63 +4,64 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>シフト入力</title>
+<meta name="theme-color" content="#EFF1F4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0C1015" media="(prefers-color-scheme: dark)">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <style>
+  <link rel="stylesheet" href="sieg-theme.css">
+<style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     html { font-size: 16px; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
-      background: #EEF2F6; min-height: 100vh;
+      font-family: var(--sg-font);
+      background: var(--sg-bg); min-height: 100vh;
       padding: 10px 10px 110px;
-      color: #26323D;
+      color: var(--sg-ink);
     }
 
     /* ===== タブ ===== */
-    .tabs { display: flex; background: #fff; border-radius: 14px; margin-bottom: 10px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
-    .tab { flex: 1; padding: 15px 8px; text-align: center; font-size: 15px; font-weight: 700; color: #97A3AE; border-bottom: 3px solid transparent; }
-    .tab.active { color: #2D5F8A; border-bottom-color: #2D5F8A; }
+    /* タブは画面の下（sieg-theme.css の .sg-tabbar） */
 
     /* ===== 進捗バー ===== */
-    .progress-wrap { background: #fff; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.07); }
-    .progress-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: #6B7986; margin-bottom: 8px; }
-    .progress-label b { color: #2D5F8A; }
-    .progress-track { height: 8px; background: #EEF2F6; border-radius: 99px; overflow: hidden; }
-    .progress-fill { height: 100%; background: linear-gradient(90deg, #2D5F8A, #4A90D9); border-radius: 99px; width: 0%; transition: width .3s ease; }
+    .progress-wrap { background: var(--sg-surface); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--sg-lift); }
+    .progress-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--sg-mute); margin-bottom: 8px; }
+    .progress-label b { color: var(--sg-blue); }
+    .progress-track { height: 8px; background: var(--sg-bg); border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--sg-primary); border-radius: 99px; width: 0%; transition: width .3s ease; }
 
     .edit-banner {
       display: none; align-items: center; gap: 8px;
-      background: #FFF6E5; border: 1.5px solid #F5C860; border-radius: 12px;
-      padding: 12px 14px; margin-bottom: 10px; font-size: 13px; font-weight: 700; color: #8A6416;
+      background: var(--sg-amber-tint); border: 1.5px solid var(--sg-amber); border-radius: 12px;
+      padding: 12px 14px; margin-bottom: 10px; font-size: 13px; font-weight: 700; color: var(--sg-amber);
     }
     .edit-banner.show { display: flex; }
     .edit-banner .banner-text { flex: 1; }
     .btn-cancel-edit {
-      border: 1.5px solid #C79A2E; background: #fff; color: #8A6416; border-radius: 8px;
+      border: 1.5px solid var(--sg-amber); background: var(--sg-surface); color: var(--sg-amber); border-radius: 8px;
       padding: 8px 12px; font-size: 12.5px; font-weight: 700; flex-shrink: 0;
     }
 
     /* ===== カード ===== */
     .card {
-      background: #fff; border-radius: 14px; padding: 14px; margin-bottom: 10px;
-      box-shadow: 0 1px 6px rgba(0,0,0,.07); transition: box-shadow .2s ease, border-color .2s ease;
+      background: var(--sg-surface); border-radius: 14px; padding: 14px; margin-bottom: 10px;
+      box-shadow: var(--sg-lift); transition: box-shadow .2s ease, border-color .2s ease;
       border: 2px solid transparent; scroll-margin-top: 12px;
     }
-    .card.done { border-color: #C8E6C9; }
+    .card.done { border-color: var(--sg-green); }
     .card-label {
-      font-size: 13px; font-weight: 700; color: #6B7986; margin-bottom: 10px;
+      font-size: 13px; font-weight: 700; color: var(--sg-mute); margin-bottom: 10px;
       display: flex; align-items: center; gap: 8px;
     }
     .step-num {
       display: inline-flex; align-items: center; justify-content: center;
-      width: 22px; height: 22px; border-radius: 50%; background: #2D5F8A; color: #fff;
+      width: 22px; height: 22px; border-radius: 50%; background: var(--sg-primary); color: var(--sg-on-primary);
       font-size: 12px; font-weight: 700; flex-shrink: 0; transition: background .2s ease;
     }
-    .card.done .step-num { background: #2E7D32; }
+    .card.done .step-num { background: var(--sg-green); }
     .step-label-text { flex-shrink: 0; }
     .step-done-summary {
-      font-size: 12.5px; font-weight: 700; color: #2E7D32;
+      font-size: 12.5px; font-weight: 700; color: var(--sg-green);
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; text-align: right;
     }
 
@@ -70,101 +71,120 @@
     .chips.cols4 { grid-template-columns: repeat(4, 1fr); }
     .chips.cols2 { grid-template-columns: repeat(2, 1fr); }
     .chip {
-      padding: 15px 4px; border: 2px solid #DDE4EA; border-radius: 12px;
-      background: #FAFBFC; text-align: center; font-size: 15px; font-weight: 700;
-      color: #4A5865; min-height: 54px; display: flex; align-items: center; justify-content: center;
+      padding: 15px 4px; border: 2px solid var(--sg-hair); border-radius: 12px;
+      background: var(--sg-sunk); text-align: center; font-size: 15px; font-weight: 700;
+      color: var(--sg-ink2); min-height: 54px; display: flex; align-items: center; justify-content: center;
       transition: transform .05s;
     }
     .chip:active { transform: scale(.95); }
-    .chip.selected { border-color: #2D5F8A; background: #2D5F8A; color: #fff; }
+    .chip.selected { border-color: var(--sg-primary); background: var(--sg-primary); color: var(--sg-on-primary); }
 
-    .auto-badge { background: #E8F5E9; color: #2E7D32; border-radius: 6px; font-size: 11px; padding: 2px 8px; font-weight: 700; }
+    .auto-badge { background: var(--sg-green-tint); color: var(--sg-green); border-radius: 6px; font-size: 11px; padding: 2px 8px; font-weight: 700; }
 
     /* ===== テキスト入力 ===== */
     input[type="text"] {
-      width: 100%; padding: 15px 14px; border: 2px solid #DDE4EA; border-radius: 12px;
-      font-size: 16px; background: #FAFBFC; color: #26323D;
+      width: 100%; padding: 15px 14px; border: 2px solid var(--sg-hair); border-radius: 12px;
+      font-size: 16px; background: var(--sg-sunk); color: var(--sg-ink);
     }
-    input[type="text"]:focus { outline: none; border-color: #2D5F8A; background: #fff; }
+    input[type="text"]:focus { outline: none; border-color: var(--sg-primary); background: var(--sg-surface); }
     .input-gap { margin-top: 12px; }
-    .field-label { font-size: 13px; font-weight: 700; color: #6B7986; margin-bottom: 8px; }
+    .field-label { font-size: 13px; font-weight: 700; color: var(--sg-mute); margin-bottom: 8px; }
     .quick-places { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     .qp {
-      padding: 8px 12px; border-radius: 20px; border: 1px solid #DDE4EA;
-      background: #fff; font-size: 13px; color: #4A5865; font-weight: 600;
+      padding: 8px 12px; border-radius: 20px; border: 1px solid var(--sg-hair);
+      background: var(--sg-surface); font-size: 13px; color: var(--sg-ink2); font-weight: 600;
     }
-    .qp:active { background: #EEF2F6; }
+    .qp:active { background: var(--sg-bg); }
 
     /* ===== カレンダー ===== */
     .cal-header { display: flex; align-items: center; justify-content: center; margin-bottom: 12px; min-height: 24px; }
-    .cal-title { font-size: 17px; font-weight: 800; color: #2D5F8A; }
+    .cal-title { font-size: 17px; font-weight: 800; color: var(--sg-blue); }
     .cal-dow-grid, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-    .cal-dow { text-align: center; font-size: 11px; color: #97A3AE; padding: 4px 0; font-weight: 700; }
-    .cal-dow.sat { color: #1565C0; } .cal-dow.sun { color: #C62828; }
+    .cal-dow { text-align: center; font-size: 11px; color: var(--sg-faint); padding: 4px 0; font-weight: 700; }
+    .cal-dow.sat { color: var(--sg-sat); } .cal-dow.sun { color: var(--sg-red); }
     .cal-day {
       text-align: center; font-size: 17px; font-weight: 600; border-radius: 10px;
-      color: #26323D; min-height: 50px; display: flex; align-items: center; justify-content: center;
+      color: var(--sg-ink); min-height: 50px; display: flex; align-items: center; justify-content: center;
     }
     .cal-day:active { opacity: .6; }
-    .cal-day.sat { color: #1565C0; } .cal-day.sun { color: #C62828; }
-    .cal-day.start, .cal-day.end { background: #2D5F8A !important; color: #fff !important; font-weight: 800; }
-    .cal-day.in-range { background: #C6DCF2; color: #0C447C; border-radius: 0; }
+    .cal-day.sat { color: var(--sg-sat); } .cal-day.sun { color: var(--sg-red); }
+    .cal-day.start, .cal-day.end { background: var(--sg-primary) !important; color: var(--sg-on-primary) !important; font-weight: 800; }
+    .cal-day.in-range { background: var(--sg-blue-tint); color: var(--sg-ink); border-radius: 0; }
     .cal-day.empty { pointer-events: none; }
     .cal-day { flex-direction: column; gap: 3px; }
     .cal-mark { width: 70%; height: 5px; border-radius: 3px; }
     .cal-mark.editing { opacity: .35; }
-    .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px #fff; }
-    .cal-day.conflict { background: #FDE2E2; color: #B71C1C; }
-    .cal-day.conflict.start, .cal-day.conflict.end { box-shadow: inset 0 0 0 3px #E53935; }
-    .cal-status { grid-column: 1 / -1; text-align: center; color: #97A3AE; font-size: 14px; font-weight: 700; padding: 28px 0; }
-    .range-info.warn { color: #C62828; }
-    .booked-list { margin-top: 12px; border-top: 1px dashed #E3E9EE; padding-top: 10px; font-size: 13px; }
-    .booked-head { font-weight: 700; color: #6B7986; margin-bottom: 4px; }
-    .booked-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: #26323D; font-weight: 600; }
+    .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-surface); }
+    .cal-day.conflict { background: var(--sg-red-tint); color: var(--sg-red); }
+    .cal-day.conflict.start, .cal-day.conflict.end { box-shadow: inset 0 0 0 3px var(--sg-red); }
+    .cal-status { grid-column: 1 / -1; text-align: center; color: var(--sg-faint); font-size: 14px; font-weight: 700; padding: 28px 0; }
+    .range-info.warn { color: var(--sg-red); }
+    .booked-list { margin-top: 12px; border-top: 1px dashed var(--sg-hair); padding-top: 10px; font-size: 13px; }
+    .booked-head { font-weight: 700; color: var(--sg-mute); margin-bottom: 4px; }
+    .booked-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: var(--sg-ink); font-weight: 600; }
     .booked-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-    .booked-note { color: #97A3AE; font-weight: 600; padding: 4px 0; }
-    .btn-retry { margin-left: 8px; padding: 6px 12px; border: 1.5px solid #2D5F8A; border-radius: 8px; background: #fff; color: #2D5F8A; font-size: 13px; font-weight: 700; }
-    .range-info { text-align: center; margin-top: 10px; font-size: 14px; font-weight: 700; color: #97A3AE; min-height: 20px; }
-    .range-info.set { color: #2D5F8A; }
+    .booked-note { color: var(--sg-faint); font-weight: 600; padding: 4px 0; }
+    .btn-retry { margin-left: 8px; padding: 6px 12px; border: 1.5px solid var(--sg-primary); border-radius: 8px; background: var(--sg-surface); color: var(--sg-blue); font-size: 13px; font-weight: 700; }
+    .range-info { text-align: center; margin-top: 10px; font-size: 14px; font-weight: 700; color: var(--sg-faint); min-height: 20px; }
+    .range-info.set { color: var(--sg-blue); }
 
     /* ===== スティッキー送信バー ===== */
     .submit-bar {
       position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
-      background: rgba(255,255,255,.97); padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
-      box-shadow: 0 -2px 12px rgba(0,0,0,.1);
+      background: var(--sg-bg); padding: 10px 12px 10px;
+      box-shadow: 0 -1px 0 var(--sg-hair);
     }
-    .summary { font-size: 12px; color: #6B7986; margin-bottom: 8px; text-align: center; min-height: 15px; font-weight: 600; }
+    .summary { font-size: 12px; color: var(--sg-mute); margin-bottom: 8px; text-align: center; min-height: 15px; font-weight: 600; }
     .btn-submit {
-      width: 100%; padding: 16px; background: #2D5F8A; color: #fff; border: none;
+      width: 100%; padding: 16px; background: var(--sg-primary); color: var(--sg-on-primary); border: none;
       border-radius: 12px; font-size: 17px; font-weight: 800; min-height: 54px;
     }
-    .btn-submit:active { background: #1a4a6e; transform: scale(.98); }
-    .btn-submit:disabled { background: #B8C4CE; }
+    .btn-submit:active { background: var(--sg-primary); transform: scale(.98); }
+    .btn-submit:disabled { background: var(--sg-hair); }
     #result { text-align: center; font-size: 14px; font-weight: 700; min-height: 18px; margin-top: 6px; }
-    .success { color: #2E7D32; } .error-msg { color: #C62828; }
+    .success { color: var(--sg-green); } .error-msg { color: var(--sg-red); }
 
     /* ===== 確認タブ ===== */
-    .shift-item { border: 1px solid #E3E9EE; border-radius: 12px; padding: 14px; margin-bottom: 10px; background: #FAFBFC; }
-    .shift-item .date-label { font-size: 16px; font-weight: 800; color: #2D5F8A; margin-bottom: 6px; }
+    .shift-item { border: 1px solid var(--sg-hair); border-radius: 12px; padding: 14px; margin-bottom: 10px; background: var(--sg-sunk); }
+    .shift-item .date-label { font-size: 16px; font-weight: 800; color: var(--sg-blue); margin-bottom: 6px; }
     .shift-item .detail { font-size: 14px; margin-bottom: 3px; }
-    .shift-item .detail span { color: #97A3AE; font-size: 12px; margin-right: 6px; }
+    .shift-item .detail span { color: var(--sg-faint); font-size: 12px; margin-right: 6px; }
     .shift-actions { display: flex; gap: 8px; margin-top: 12px; }
-    .btn-edit, .btn-delete { flex: 1; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 700; background: #fff; min-height: 48px; }
-    .btn-edit { border: 2px solid #2D5F8A; color: #2D5F8A; }
-    .btn-delete { border: 2px solid #E53935; color: #E53935; }
-    .empty-msg, .loading-msg { text-align: center; color: #AAB4BD; font-size: 14px; padding: 30px 0; }
+    .btn-edit, .btn-delete { flex: 1; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 700; background: var(--sg-surface); min-height: 48px; }
+    .btn-edit { border: 2px solid var(--sg-primary); color: var(--sg-blue); }
+    .btn-delete { border: 2px solid var(--sg-red); color: var(--sg-red); }
+    .empty-msg, .loading-msg { text-align: center; color: var(--sg-faint); font-size: 14px; padding: 30px 0; }
 
     .page { display: none; }
     .page.active { display: block; }
     button { font-family: inherit; cursor: pointer; }
-  </style>
+  
+  /* ═══ 共通の見た目（sieg-theme.css）に合わせる ═══
+     色は上ですべて --sg-* につないである。ここでは形と「選択中」の見せ方をそろえる。 */
+  body { background: var(--sg-bg); color: var(--sg-ink); }
+  #staff-select-screen { background: var(--sg-bg); }
+  .ss-title { color: var(--sg-ink); }
+  .ss-sub, .ss-loading { color: var(--sg-mute); }
+  .ss-btn { background: var(--sg-surface); color: var(--sg-ink); box-shadow: var(--sg-lift); border: 1px solid var(--sg-hair); border-radius: var(--sg-r-sm); }
+  .ss-btn:active { background: var(--sg-primary); color: var(--sg-on-primary); }
+  body { padding-bottom: calc(130px + var(--sg-tabbar-h)); }
+  /* 送信バーは下のタブの上に重ねる */
+  .submit-bar { bottom: var(--sg-tabbar-h); max-width: 560px; margin: 0 auto; border-top: 1px solid var(--sg-hair); }
+  .card, .progress-wrap { border-radius: var(--sg-r); }
+  .chip, .qp, input[type="text"], .btn-submit, .btn-edit, .btn-delete { border-radius: var(--sg-r-sm); }
+  .qp { border-radius: 999px; }
+  .chip.selected { background: var(--sg-primary); border-color: var(--sg-primary); color: var(--sg-on-primary); }
+  .progress-fill { background: var(--sg-primary); }
+  .cal-day.in-range { color: var(--sg-ink); }
+  .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
+</style>
 </head>
 <body>
 
-  <div class="tabs">
-    <div class="tab active" id="tab-input" onclick="switchTab('input')">入力</div>
-    <div class="tab" id="tab-confirm" onclick="switchTab('confirm')">確認・修正</div>
-  </div>
+  <nav class="tabs sg-tabbar" aria-label="画面の切り替え">
+    <button type="button" class="tab sg-tab active" id="tab-input" onclick="switchTab('input')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>入力</button>
+    <button type="button" class="tab sg-tab" id="tab-confirm" onclick="switchTab('confirm')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>確認・修正</button>
+  </nav>
 
   <!-- ===== 入力タブ ===== -->
   <div id="page-input" class="page active">
