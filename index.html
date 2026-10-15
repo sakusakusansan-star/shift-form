@@ -24,11 +24,6 @@
     /* タブは画面の下（sieg-theme.css の .sg-tabbar） */
 
     /* ===== 進捗バー ===== */
-    .progress-wrap { background: var(--sg-surface); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; box-shadow: var(--sg-lift); }
-    .progress-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--sg-mute); margin-bottom: 8px; }
-    .progress-label b { color: var(--sg-blue); }
-    .progress-track { height: 8px; background: var(--sg-bg); border-radius: 99px; overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--sg-primary); border-radius: 99px; width: 0%; transition: width .3s ease; }
 
     .edit-banner {
       display: none; align-items: center; gap: 8px;
@@ -170,11 +165,15 @@
   body { padding-bottom: calc(130px + var(--sg-tabbar-h)); }
   /* 送信バーは下のタブの上に重ねる */
   .submit-bar { bottom: var(--sg-tabbar-h); max-width: 560px; margin: 0 auto; border-top: 1px solid var(--sg-hair); }
-  .card, .progress-wrap { border-radius: var(--sg-r); }
+  .card { border-radius: var(--sg-r); }
   .chip, .qp, input[type="text"], .btn-submit, .btn-edit, .btn-delete { border-radius: var(--sg-r-sm); }
   .qp { border-radius: 999px; }
+  /* 送信バーを薄くする：要約・結果は中身があるときだけ場所を取る */
+  .summary:empty, #result:empty { display: none; }
+  .submit-bar { padding-top: 8px; padding-bottom: 8px; }
+  body { padding-bottom: calc(96px + var(--sg-tabbar-h)); }
+  .btn-submit.pending { background: var(--sg-sunk); color: var(--sg-mute); box-shadow: inset 0 0 0 1px var(--sg-hair); }
   .chip.selected { background: var(--sg-primary); border-color: var(--sg-primary); color: var(--sg-on-primary); }
-  .progress-fill { background: var(--sg-primary); }
   .cal-day.in-range { color: var(--sg-ink); }
   .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
   /* その人だけのシフト入力のときの名前の帯 */
@@ -203,11 +202,6 @@
 
   <!-- ===== 入力タブ ===== -->
   <div id="page-input" class="page active">
-
-    <div class="progress-wrap">
-      <div class="progress-label"><span>入力の進み具合</span><span><b id="progress-count">0</b>/<span id="progress-total">5</span> 完了</span></div>
-      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
-    </div>
 
     <div class="edit-banner" id="edit-banner">
       <span class="banner-text">✏️ 修正モード：内容を変更して送信してください</span>
@@ -735,10 +729,11 @@
       var sumEl = document.getElementById('stepsum-' + id);
       if (sumEl) sumEl.textContent = getSummaryText(id);
     });
-    document.getElementById('progress-count').textContent = completedCount;
-    document.getElementById('progress-total').textContent = stepOrder.length;
-    var pct = Math.round((completedCount / stepOrder.length) * 100);
-    document.getElementById('progress-fill').style.width = pct + '%';
+    // 送信ボタンに残りの数を出す（押せば足りない所を教えるので、押せないようにはしない）
+    var left = stepOrder.length - completedCount;
+    var btn = document.getElementById('btn-submit');
+    btn.textContent = left ? 'あと' + left + 'つ入力' : (editMode ? '修正を送信する' : '送信する');
+    btn.classList.toggle('pending', left > 0);
   }
 
   // 手順の番号は、表示している手順だけで 1 から振る
@@ -961,7 +956,7 @@
   // ===== 送信バーのサマリー =====
   function updateSummary() {
     var parts = [];
-    if (sel.name) parts.push(sel.name);
+    if (sel.name && !staffFromUrl) parts.push(sel.name);
     if (sel.torihiki) parts.push(sel.torihiki);
     if (sel.carrier) parts.push(sel.carrier);
     if (startDay) parts.push(calMonth + '/' + startDay + (endDay && endDay !== startDay ? '〜' + endDay : ''));
@@ -1085,7 +1080,7 @@
       var dateStr = s.month + '月' + s.startDay + '日';
       if (s.startDay !== s.endDay) dateStr += ' 〜 ' + s.month + '月' + s.endDay + '日';
       html += '<div class="shift-item">';
-      html += '<div class="date-label">📅 ' + dateStr + '</div>';
+      html += '<div class="date-label">' + dateStr + '</div>';
       html += '<div class="detail"><span>取引先</span>' + s.torihiki + '</div>';
       html += '<div class="detail"><span>キャリア</span>' + s.carrier + '</div>';
       html += '<div class="detail"><span>開催場所</span>' + s.place + '</div>';
