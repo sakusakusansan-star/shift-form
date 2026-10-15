@@ -112,6 +112,12 @@
     .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-surface); }
     .cal-day.conflict { background: var(--sg-red-tint); color: var(--sg-red); }
     .cal-day.conflict.start, .cal-day.conflict.end { box-shadow: inset 0 0 0 3px var(--sg-red); }
+    /* 新規入力：タップで1日ずつ・なぞるとまとめて選ぶ。縦のスクロールはそのまま使える */
+    .cal-grid { touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+    .cal-day.on { background: var(--sg-primary); color: var(--sg-on-primary); font-weight: 800; }
+    .cal-day.on .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
+    .cal-day.on.conflict { box-shadow: inset 0 0 0 3px var(--sg-red); }
+    .btn-clear-days { margin-top: 8px; padding: 6px 14px; border: 1px solid var(--sg-hair); border-radius: 999px; background: var(--sg-surface); color: var(--sg-mute); font-size: 13px; font-weight: 700; }
     .cal-status { grid-column: 1 / -1; text-align: center; color: var(--sg-faint); font-size: 14px; font-weight: 700; padding: 28px 0; }
     .range-info.warn { color: var(--sg-red); }
     .booked-list { margin-top: 12px; border-top: 1px dashed var(--sg-hair); padding-top: 10px; font-size: 13px; }
@@ -255,7 +261,7 @@
     <div class="card" id="step-date">
       <div class="card-label">
         <span class="step-num" id="stepnum-date">4</span>
-        <span class="step-label-text">期間（開始日 → 終了日の順にタップ）</span>
+        <span class="step-label-text">日にち</span>
         <span class="step-done-summary" id="stepsum-date"></span>
       </div>
       <div class="cal-header">
@@ -315,6 +321,9 @@
   var GAS_URL = "https://script.google.com/macros/s/AKfycbwx4-wjr4Qmx6zeXDXZhht-65W7veveJvaXXmC9V5MQLipOLxLoWfz-XEUBau8NZ58h/exec";
 
   var calYear, calMonth, startDay = null, endDay = null;
+  // 新規入力で選んだ日 { 日: true }。とびとびでもよい（送るときに続いた日ごとにまとめる）。
+  // 修正のときだけは今までどおり startDay〜endDay の1つの期間で選ぶ。
+  var picked = {};
   var sel = { name: '', torihiki: '', carrier: '' };
   var confirmName = '';
   var carrierAutoSet = false;
@@ -464,6 +473,44 @@
     for (var d = from; d <= to; d++) {
       if (booked[d] && !isEditingShift(booked[d])) out.push({ day: d, shift: booked[d] });
     }
+    return out;
+  }
+
+  function pickedDays() {
+    return Object.keys(picked).map(Number).sort(function(a, b) { return a - b; });
+  }
+
+  // 選んだ日を、続いている日ごとのかたまり { start, end } にまとめる
+  function toRanges(days) {
+    var out = [];
+    days.forEach(function(d) {
+      var last = out[out.length - 1];
+      if (last && d === last.end + 1) last.end = d;
+      else out.push({ start: d, end: d });
+    });
+    return out;
+  }
+
+  // 今選んでいる日にち（修正のときは1つの期間、新規はとびとびの日をまとめたもの）
+  function selectedRanges() {
+    if (editMode) return startDay ? [{ start: startDay, end: endDay || startDay }] : [];
+    return toRanges(pickedDays());
+  }
+
+  function dateChosen() {
+    return editMode ? !!(startDay && endDay) : pickedDays().length > 0;
+  }
+
+  // 「1〜3日・10日・15日」
+  function rangesText(ranges) {
+    return ranges.map(function(r) {
+      return r.start === r.end ? r.start + '日' : r.start + '〜' + r.end + '日';
+    }).join('・');
+  }
+
+  function rangesConflicts(ranges) {
+    var out = [];
+    ranges.forEach(function(r) { out = out.concat(findConflicts(r.start, r.end)); });
     return out;
   }
 
@@ -694,7 +741,7 @@
     if (id === 'name')     return !!sel.name;
     if (id === 'torihiki') return !!sel.torihiki;
     if (id === 'carrier')  return !!sel.carrier;
-    if (id === 'date')     return !!(startDay && endDay);
+    if (id === 'date')     return dateChosen();
     if (id === 'place')    return !!document.getElementById('place').value;
     return false;
   }
@@ -704,9 +751,10 @@
     if (id === 'torihiki') return sel.torihiki ? ('✓ ' + sel.torihiki) : '';
     if (id === 'carrier')  return sel.carrier ? ('✓ ' + sel.carrier + (carrierAutoSet ? '（自動）' : '')) : '';
     if (id === 'date') {
-      if (!startDay) return '';
-      var txt = calMonth + '月' + startDay + '日' + (endDay && endDay !== startDay ? '〜' + endDay + '日' : '');
-      return endDay ? ('✓ ' + txt) : txt;
+      var rs = selectedRanges();
+      if (!rs.length) return '';
+      var txt = calMonth + '月' + rangesText(rs);
+      return dateChosen() ? ('✓ ' + txt) : txt;
     }
     if (id === 'place') {
       var p = document.getElementById('place').value;
@@ -828,9 +876,7 @@
     var daysInMonth = new Date(calYear, calMonth, 0).getDate();
     var booked = bookedByDay();
     var conflictDays = {};
-    if (startDay) {
-      findConflicts(startDay, endDay || startDay).forEach(function(c) { conflictDays[c.day] = true; });
-    }
+    rangesConflicts(selectedRanges()).forEach(function(c) { conflictDays[c.day] = true; });
 
     for (var i = 0; i < offset; i++) {
       var blank = document.createElement('div');
@@ -842,14 +888,19 @@
         var wd = new Date(calYear, calMonth - 1, day).getDay();
         var div = document.createElement('div');
         div.className = 'cal-day';
+        div.setAttribute('data-day', day);
         var num = document.createElement('span');
         num.textContent = day;
         div.appendChild(num);
         if (wd === 6) div.classList.add('sat');
         if (wd === 0) div.classList.add('sun');
-        if (startDay && endDay && day > startDay && day < endDay) div.classList.add('in-range');
-        if (startDay && day === startDay) div.classList.add('start');
-        if (endDay && day === endDay) div.classList.add('end');
+        if (editMode) {
+          if (startDay && endDay && day > startDay && day < endDay) div.classList.add('in-range');
+          if (startDay && day === startDay) div.classList.add('start');
+          if (endDay && day === endDay) div.classList.add('end');
+        } else if (picked[day]) {
+          div.classList.add('on');
+        }
         if (conflictDays[day]) div.classList.add('conflict');
         // 登録済みの予定は取引先の色の帯で示す
         var s = booked[day];
@@ -859,8 +910,8 @@
           mark.style.background = torihikiColor(s.torihiki);
           div.appendChild(mark);
         }
-        div.onclick = function() {
-          var wasComplete = !!(startDay && endDay);
+        // 新規入力のタップ・なぞりは下の setupCalendarPicking が受け持つ
+        if (editMode) div.onclick = function() {
           if (!startDay || (startDay && endDay)) {
             startDay = day; endDay = null;
           } else {
@@ -871,9 +922,6 @@
           renderCal();
           updateSummary();
           updateProgress();
-          if (!wasComplete && startDay && endDay && !editMode) {
-            scrollToNextAfter('date');
-          }
         };
         grid.appendChild(div);
       })(d);
@@ -882,9 +930,104 @@
     renderBookedList();
   }
 
+  function afterPick() {
+    if (navigator.vibrate) navigator.vibrate(10);
+    renderCal();
+    updateSummary();
+    updateProgress();
+  }
+
+  // 新規入力の日にちの選び方
+  //   ・タップ … その日を選ぶ／外す
+  //   ・なぞる … なぞり始めた日から指のある日まで、続けてまとめて選ぶ（始めの日が選んであれば、まとめて外す）
+  // 縦に動かしたときはページのスクロールになる（touch-action: pan-y）。
+  // 横に動かし始めれば、そのあと下の週へ動かしてもなぞりが続く。
+  (function setupCalendarPicking() {
+    var grid = document.getElementById('calGrid');
+    var drag = null;
+
+    function dayAt(x, y) {
+      var el = document.elementFromPoint(x, y);
+      el = el && el.closest ? el.closest('.cal-day[data-day]') : null;
+      return el && grid.contains(el) ? Number(el.getAttribute('data-day')) : 0;
+    }
+
+    function paint() {
+      grid.querySelectorAll('.cal-day[data-day]').forEach(function(el) {
+        el.classList.toggle('on', !!picked[Number(el.getAttribute('data-day'))]);
+      });
+    }
+
+    grid.addEventListener('pointerdown', function(e) {
+      if (editMode || !monthLoaded || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      var day = dayAt(e.clientX, e.clientY);
+      if (!day) return;
+      drag = { from: day, to: day, add: !picked[day], base: Object.assign({}, picked), moved: false };
+    });
+
+    grid.addEventListener('pointermove', function(e) {
+      if (!drag) return;
+      var day = dayAt(e.clientX, e.clientY);
+      if (!day || day === drag.to) return;
+      drag.to = day;
+      drag.moved = true;
+      picked = Object.assign({}, drag.base);
+      var a = Math.min(drag.from, day), b = Math.max(drag.from, day);
+      for (var d = a; d <= b; d++) {
+        if (drag.add) picked[d] = true; else delete picked[d];
+      }
+      paint();
+    });
+
+    function end(e) {
+      if (!drag) return;
+      var dr = drag;
+      drag = null;
+      if (e.type === 'pointercancel') {
+        // スクロールに変わったときは、なぞりで変えた分を元に戻す
+        picked = dr.base;
+        paint();
+        return;
+      }
+      if (!dr.moved) {
+        if (dr.add) picked[dr.from] = true; else delete picked[dr.from];
+      }
+      afterPick();
+    }
+    grid.addEventListener('pointerup', end);
+    grid.addEventListener('pointercancel', end);
+  })();
+
   function updateRangeInfo() {
     var el = document.getElementById('rangeInfo');
     var text, cls = 'range-info';
+    if (!editMode) {
+      var days = pickedDays();
+      if (days.length) {
+        cls += ' set';
+        text = calMonth + '月' + rangesText(toRanges(days)) + '（' + days.length + '日）';
+      } else {
+        text = '日にちをタップ（続いた日は横になぞるとまとめて選べます）';
+      }
+      var confs = rangesConflicts(toRanges(days));
+      if (confs.length) {
+        cls = 'range-info warn';
+        text += '\n⚠️ 予定あり: ' + describeConflicts(confs).join('、') + '（送信すると上書きされます）';
+      }
+      el.className = cls;
+      el.style.whiteSpace = 'pre-line';
+      el.textContent = text;
+      if (days.length >= 2) {
+        el.appendChild(document.createElement('br'));
+        var clr = document.createElement('button');
+        clr.type = 'button';
+        clr.className = 'btn-clear-days';
+        clr.textContent = '選んだ日を全部外す';
+        clr.onclick = function() { picked = {}; afterPick(); };
+        el.appendChild(clr);
+      }
+      return;
+    }
     if (startDay && endDay) {
       cls += ' set';
       text = calMonth + '月' + startDay + '日 〜 ' + calMonth + '月' + endDay + '日（' + (endDay - startDay + 1) + '日間）';
@@ -892,7 +1035,7 @@
       cls += ' set';
       text = calMonth + '月' + startDay + '日 → 終了日をタップ（1日だけならもう一度同じ日）';
     } else {
-      text = '開始日をタップ';
+      text = '修正：開始日をタップ';
     }
     if (startDay) {
       var conf = findConflicts(startDay, endDay || startDay);
@@ -959,7 +1102,8 @@
     if (sel.name && !staffFromUrl) parts.push(sel.name);
     if (sel.torihiki) parts.push(sel.torihiki);
     if (sel.carrier) parts.push(sel.carrier);
-    if (startDay) parts.push(calMonth + '/' + startDay + (endDay && endDay !== startDay ? '〜' + endDay : ''));
+    var rs = selectedRanges();
+    if (rs.length) parts.push(calMonth + '月' + rangesText(rs));
     var place = document.getElementById('place').value;
     if (place) parts.push(place);
     document.getElementById('summary').textContent = parts.join(' ｜ ');
@@ -983,7 +1127,8 @@
     if (!data.name) { showError('名前を選択してください'); return; }
     if (!data.torihiki) { showError('取引先を選択してください'); return; }
     if (!data.carrier) { showError('キャリアを選択してください'); return; }
-    if (!startDay) { showError('期間を選択してください'); return; }
+    var ranges = selectedRanges();
+    if (!ranges.length) { showError('日にちを選んでください'); return; }
     if (!data.place) { showError('開催場所を入力してください'); return; }
     if (!monthLoaded) { showError('シフト表の読み込みが終わってから送信してください'); return; }
 
@@ -996,7 +1141,7 @@
     if (editMode && editOriginal) payload.original = editOriginal;
 
     // GASは既存の予定を黙って上書きするので、重なる日があれば先に確認する
-    confirmOverwrite(data.startDay, data.endDay)
+    confirmOverwrite(ranges)
       .then(function(ok) {
         if (!ok) {
           resultEl.textContent = '';
@@ -1007,33 +1152,58 @@
         return sendShift();
       });
 
+    // 修正は1件。新規は続いた日ごとに1件ずつ順に送る（シフト表への書き込み方は今までと同じ）。
+    // 途中で失敗したら、送れた分は選んだ日から外し、もう一度「送信する」で残りだけ送れるようにする。
     function sendShift() {
-      return callApi('submitShift', payload)
-        .then(function() {
-          rememberPlace(data.name, data.place);
-          resultEl.className = 'success';
-          resultEl.textContent = '✅ 送信完了しました！';
-          btn.disabled = false;
-          if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
-
-          startDay = null; endDay = null;
-          document.getElementById('place').value = '';
-          document.getElementById('hotel').value = '';
-          renderCal();
-          updateSummary();
-          updateProgress();
-
-          exitEditMode();
-          fetchMyShifts(sel.name, true);
-
-          scrollToStep('date');
-
-          setTimeout(function() { resultEl.textContent = ''; }, 3000);
-        })
-        .catch(function(err) {
-          showError(err.message);
-          btn.disabled = false;
+      if (editMode) return callApi('submitShift', payload).then(done, fail);
+      var sent = [];
+      return ranges.reduce(function(prev, r) {
+        return prev.then(function() {
+          resultEl.textContent = '送信中...' + (ranges.length > 1 ? '（' + (sent.length + 1) + '/' + ranges.length + '）' : '');
+          var d = Object.assign({}, data, { startDay: r.start, endDay: r.end });
+          return callApi('submitShift', { data: d }).then(function() {
+            sent.push(r);
+            for (var x = r.start; x <= r.end; x++) delete picked[x];
+          });
         });
+      }, Promise.resolve()).then(done, function(err) {
+        if (!sent.length) return fail(err);
+        rememberPlace(data.name, data.place);
+        fetchMyShifts(sel.name, true);
+        renderCal();
+        updateSummary();
+        updateProgress();
+        fail(new Error(calMonth + '月' + rangesText(sent) + ' は送信できました。' +
+          '残りの ' + rangesText(selectedRanges()) + ' は送れませんでした（' + err.message + '）。' +
+          'もう一度「送信する」を押すと残りだけ送ります'));
+      });
+    }
+
+    function done() {
+      rememberPlace(data.name, data.place);
+      resultEl.className = 'success';
+      resultEl.textContent = '✅ ' + (editMode ? '修正しました！' : calMonth + '月' + rangesText(ranges) + ' を送信しました！');
+      btn.disabled = false;
+      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+
+      startDay = null; endDay = null;
+      picked = {};
+      document.getElementById('place').value = '';
+      document.getElementById('hotel').value = '';
+      exitEditMode();
+      renderCal();
+      updateSummary();
+      updateProgress();
+      fetchMyShifts(sel.name, true);
+
+      scrollToStep('date');
+
+      setTimeout(function() { resultEl.textContent = ''; }, 4000);
+    }
+
+    function fail(err) {
+      showError(err.message);
+      btn.disabled = false;
     }
 
     function showError(msg) {
@@ -1044,9 +1214,9 @@
   }
 
   // 重なる予定があれば上書きしてよいか聞く。true なら送信してよい。
-  function confirmOverwrite(from, to) {
+  function confirmOverwrite(ranges) {
     return fetchMyShifts(sel.name).then(function() {
-      var conf = findConflicts(from, to);
+      var conf = rangesConflicts(ranges);
       if (!conf.length) return true;
       return confirm('次の日には既に予定が入っています。\n\n' + describeConflicts(conf).join('\n') +
                      '\n\n送信すると上書きされます。よろしいですか？');
@@ -1107,6 +1277,7 @@
     document.getElementById('hotel').value = shift.hotel || '';
     startDay = Number(shift.startDay);
     endDay = Number(shift.endDay);
+    picked = {};
 
     editMode = true;
     editOriginal = {
