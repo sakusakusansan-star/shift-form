@@ -356,12 +356,15 @@
     ? ['torihiki', 'carrier', 'date', 'place']
     : ['name', 'torihiki', 'carrier', 'date', 'place'];
 
-  var QUICK_PLACES = ['下通', 'ゆめタウン博多', 'ゆめタウン光の森', 'イオンモール熊本'];
+  // 開催場所のボタン（4つ）。1〜3番目はその人がよく入れる場所、4番目は最近入れた場所。
+  // 記録がまだ少ないうちは、この並びで埋める。
+  var DEFAULT_PLACES = ['下通', 'ゆめタウン博多', 'ゆめタウン光の森', 'イオンモール熊本'];
+  var PLACE_KEY = 'shiftform.places';   // この端末で送った場所 { 名前: { counts, recent } }
 
   // ── GASとの通信（共通関数） ─────────────────────────
   // 一時的な404の再試行・HTMLが返ったときの説明・タイムアウトは gas-client.js が受け持つ。
   // 読むだけの操作だけ自動でやり直す。送信・削除は送信ログが2行になるのでやり直さない。
-  var RETRY_SAFE_ACTIONS = { getMonthInfo: true, getMyShifts: true };
+  var RETRY_SAFE_ACTIONS = { getMonthInfo: true, getMyShifts: true, getPlaceStats: true };
 
   function callApi(action, params, timeoutMs) {
     var body = Object.assign({ action: action }, params || {});
@@ -395,6 +398,7 @@
         calMonth = m;
         monthLoaded = true;
         renderCal();
+        renderQuickPlaces();
         updateSummary();
         updateProgress();
       })
@@ -433,6 +437,7 @@
 
   function onShiftsUpdated() {
     renderCal();
+    renderQuickPlaces();
   }
 
   // 表示中の月の予定（今の名前の分だけ）
@@ -520,6 +525,7 @@
     selectChip('chips-confirm-name', v);
     if (!staffFromUrl) saveName(v);
     fetchMyShifts(v);
+    fetchPlaceStats(v);
     updateSummary();
     updateProgress();
   }
@@ -582,10 +588,96 @@
   }
 
   // ===== よく使う場所 =====
-  (function() {
+  // シフト表の送信ログ（GAS の getPlaceStats）から、その人の回数と最近入れた順をもらう。
+  // GAS が古くて取れないときや読み込み中は、この端末の記録と今月の登録済みの予定で並べる。
+  var serverPlaces = { name: '', data: null };
+
+  function readPlaceMemo() {
+    try { return JSON.parse(localStorage.getItem(PLACE_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function cleanPlaceData(d) {
+    return { counts: (d && d.counts) || {}, recent: (d && d.recent) || [] };
+  }
+  function addPlace(d, place) {
+    d.counts[place] = (d.counts[place] || 0) + 1;
+    d.recent = [place].concat(d.recent.filter(function(p) { return p !== place; })).slice(0, 10);
+  }
+
+  // 送信できたときに呼ぶ。端末の記録と、読み込み済みのログの両方に足す。
+  function rememberPlace(name, place) {
+    place = String(place || '').trim();
+    if (!name || !place) return;
+    var all = readPlaceMemo();
+    var mine = cleanPlaceData(all[name]);
+    addPlace(mine, place);
+    all[name] = mine;
+    try { localStorage.setItem(PLACE_KEY, JSON.stringify(all)); } catch (e) {}
+    if (serverPlaces.name === name && serverPlaces.data) addPlace(serverPlaces.data, place);
+    renderQuickPlaces();
+  }
+
+  function fetchPlaceStats(name) {
+    if (!name || serverPlaces.name === name) return;
+    serverPlaces = { name: name, data: null };
+    callApi('getPlaceStats', { name: name }).then(function(d) {
+      if (serverPlaces.name !== name) return;
+      serverPlaces.data = cleanPlaceData(d);
+      renderQuickPlaces();
+    }).catch(function() {
+      // 読めなくても端末の記録で並べるので、画面には出さない。次に名前を選んだときにまた読む。
+      if (serverPlaces.name === name && !serverPlaces.data) serverPlaces.name = '';
+    });
+  }
+
+  function quickPlaces() {
+    var name = sel.name;
+    var local = cleanPlaceData(name ? readPlaceMemo()[name] : null);
+    var srv = (name && serverPlaces.name === name && serverPlaces.data) || null;
+
+    // 回数は記録ごとの多い方を使う（同じ送信が両方に入っているため、足すと二重になる）
+    var counts = {};
+    function takeMax(src) {
+      Object.keys(src).forEach(function(p) { counts[p] = Math.max(counts[p] || 0, src[p]); });
+    }
+    var month = {};
+    monthShifts().forEach(function(s) {
+      var p = String(s.place || '').trim();
+      if (p) month[p] = (month[p] || 0) + 1;
+    });
+    takeMax(local.counts);
+    if (srv) takeMax(srv.counts);
+    takeMax(month);
+
+    // 最近の順：ログが読めていればログ、まだなら端末の記録。今月の予定は最後に足す。
+    var recent = [];
+    (srv ? srv.recent : local.recent).concat(Object.keys(month)).forEach(function(p) {
+      if (recent.indexOf(p) < 0) recent.push(p);
+    });
+    function rank(p) { var i = recent.indexOf(p); return i < 0 ? recent.length : i; }
+
+    var frequent = Object.keys(counts).sort(function(a, b) {
+      return (counts[b] - counts[a]) || (rank(a) - rank(b));
+    });
+    var out = frequent.slice(0, 3);
+    var latest = recent.filter(function(p) { return out.indexOf(p) < 0; })[0];
+    if (latest) out.push(latest);
+    frequent.concat(DEFAULT_PLACES).forEach(function(p) {
+      if (out.length < 4 && out.indexOf(p) < 0) out.push(p);
+    });
+    return out;
+  }
+
+  var shownPlaces = '';
+  function renderQuickPlaces() {
+    var list = quickPlaces();
+    var key = list.join('\n');
+    if (key === shownPlaces) return;
+    shownPlaces = key;
     var wrap = document.getElementById('quick-places');
-    QUICK_PLACES.forEach(function(p) {
+    wrap.innerHTML = '';
+    list.forEach(function(p) {
       var b = document.createElement('button');
+      b.type = 'button';
       b.className = 'qp';
       b.textContent = p;
       b.onclick = function() {
@@ -595,7 +687,8 @@
       };
       wrap.appendChild(b);
     });
-  })();
+  }
+  renderQuickPlaces();
 
   function onPlaceInput() {
     updateSummary();
@@ -922,6 +1015,7 @@
     function sendShift() {
       return callApi('submitShift', payload)
         .then(function() {
+          rememberPlace(data.name, data.place);
           resultEl.className = 'success';
           resultEl.textContent = '✅ 送信完了しました！';
           btn.disabled = false;
