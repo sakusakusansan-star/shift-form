@@ -177,6 +177,15 @@
   .progress-fill { background: var(--sg-primary); }
   .cal-day.in-range { color: var(--sg-ink); }
   .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
+  /* その人だけのシフト入力のときの名前の帯 */
+  .me-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--sg-surface); border-radius: var(--sg-r); box-shadow: var(--sg-lift);
+    padding: 12px 14px; margin-bottom: 10px; }
+  .me-bar[hidden] { display: none; }
+  .me-bar small { display: block; font-size: 11px; color: var(--sg-mute); }
+  .me-bar b { font-size: 18px; font-weight: 900; }
+  .me-bar button { border: 1px solid var(--sg-hair); background: var(--sg-sunk); color: var(--sg-ink);
+    border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 700; min-height: 40px; }
 </style>
 </head>
 <body>
@@ -185,6 +194,12 @@
     <button type="button" class="tab sg-tab active" id="tab-input" onclick="switchTab('input')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>入力</button>
     <button type="button" class="tab sg-tab" id="tab-confirm" onclick="switchTab('confirm')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>確認・修正</button>
   </nav>
+
+  <!-- ポータルで名前を選んで開いたとき（?staff=名前）は、その人だけのシフト入力になる -->
+  <div class="me-bar" id="me-bar" hidden>
+    <div><small>シフト入力</small><b><span id="me-name"></span> さん</b></div>
+    <button type="button" id="me-change">別の人にする</button>
+  </div>
 
   <!-- ===== 入力タブ ===== -->
   <div id="page-input" class="page active">
@@ -280,7 +295,7 @@
 
   <!-- ===== 確認・修正タブ ===== -->
   <div id="page-confirm" class="page">
-    <div class="card">
+    <div class="card" id="confirm-name-card">
       <div class="card-label" style="justify-content:flex-start;">名前を選択</div>
       <div class="chips cols3" id="chips-confirm-name">
         <button class="chip" data-value="山口">山口</button>
@@ -471,6 +486,23 @@
     return TORIHIKI_COLORS[t] || '#78909C';
   }
 
+  // 「別の人にする」で名前を選び直したとき。ポータルにも覚えさせ、次からその人で開く
+  var PARTNER_KEY = 'siegPartnerName';   // ポータル（sieg-portal/index.html）と同じキー
+  function switchPerson(v) {
+    staffFromUrl = v;
+    try { localStorage.setItem(PARTNER_KEY, v); } catch (e) {}
+    try {
+      var u = new URL(location.href);
+      u.searchParams.set('staff', v);
+      u.searchParams.delete('v');
+      history.replaceState(null, '', u.toString());
+    } catch (e) {}
+    document.getElementById('me-name').textContent = v;
+    document.getElementById('step-name').style.display = 'none';
+    setName(v);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
   // ── 名前（入力タブと確認タブで共通。次回のために端末に覚える）──
   function loadSavedName() {
     try {
@@ -508,6 +540,7 @@
   }
 
   setupChips('chips-name', 'name', function(v) {
+    if (staffFromUrl) return switchPerson(v);
     setName(v);
     if (!editMode) scrollToNextAfter('name');
   });
@@ -615,8 +648,11 @@
     document.getElementById('progress-fill').style.width = pct + '%';
   }
 
-  document.querySelectorAll('.step-num').forEach(function(el) {
-    el.setAttribute('data-num', el.textContent);
+  // 手順の番号は、表示している手順だけで 1 から振る
+  // （その人だけのシフト入力では「名前」が無いので、取引先が 1 になる）
+  stepOrder.forEach(function(id, i) {
+    var el = document.getElementById('stepnum-' + id);
+    if (el) { el.textContent = String(i + 1); el.setAttribute('data-num', String(i + 1)); }
   });
 
   function scrollToStep(id) {
@@ -643,7 +679,16 @@
   // ===== 起動時の処理 =====
   // URLの ?staff= があればそれを使い、無ければ前回選んだ名前を復元する。
   if (staffFromUrl) {
+    // その人だけのシフト入力：名前を選ぶ欄は出さず、上の帯に名前を出す
     document.getElementById('step-name').style.display = 'none';
+    document.getElementById('confirm-name-card').style.display = 'none';
+    document.getElementById('me-bar').hidden = false;
+    document.getElementById('me-name').textContent = staffFromUrl;
+    document.getElementById('me-change').addEventListener('click', function() {
+      var card = document.getElementById('step-name');
+      card.style.display = '';
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     setName(staffFromUrl);
   } else {
     // 前回選んだ名前 → ポータルで選んだ名前（パートナー様の一覧にある場合だけ）
