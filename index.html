@@ -113,7 +113,7 @@
     .cal-day.conflict { background: var(--sg-red-tint); color: var(--sg-red); }
     .cal-day.conflict.start, .cal-day.conflict.end { box-shadow: inset 0 0 0 3px var(--sg-red); }
     /* 新規入力：タップで1日ずつ・なぞるとまとめて選ぶ。縦のスクロールはそのまま使える */
-    .cal-grid { touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+    .cal-grid { touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
     .cal-day.on { background: var(--sg-primary); color: var(--sg-on-primary); font-weight: 800; }
     .cal-day.on .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
     .cal-day.on.conflict { box-shadow: inset 0 0 0 3px var(--sg-red); }
