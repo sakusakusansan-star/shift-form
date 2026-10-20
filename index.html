@@ -536,7 +536,10 @@
   var PARTNER_KEY = 'siegPartnerName';   // ポータル（sieg-portal/index.html）と同じキー
   function switchPerson(v) {
     staffFromUrl = v;
-    try { localStorage.setItem(PARTNER_KEY, v); } catch (e) {}
+    try {
+      localStorage.setItem(PARTNER_KEY, v);
+      localStorage.setItem('siegStaff', v);   // ポータルの名前も変える（次からポータルもこの人で開く）
+    } catch (e) {}
     try {
       var u = new URL(location.href);
       u.searchParams.set('staff', v);
