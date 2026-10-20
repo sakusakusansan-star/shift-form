@@ -220,11 +220,7 @@
         <span class="step-label-text">名前</span>
         <span class="step-done-summary" id="stepsum-name"></span>
       </div>
-      <div class="chips cols3" id="chips-name">
-        <button class="chip" data-value="山口">山口</button>
-        <button class="chip" data-value="鈴木">鈴木</button>
-        <button class="chip" data-value="毛利">毛利</button>
-        <button class="chip" data-value="山内">山内</button>
+      <div class="chips cols3" id="chips-name"><!-- 名前ボタンは名簿（sieg-roster.js）から作る -->
       </div>
     </div>
 
@@ -297,11 +293,7 @@
   <div id="page-confirm" class="page">
     <div class="card" id="confirm-name-card">
       <div class="card-label" style="justify-content:flex-start;">名前を選択</div>
-      <div class="chips cols3" id="chips-confirm-name">
-        <button class="chip" data-value="山口">山口</button>
-        <button class="chip" data-value="鈴木">鈴木</button>
-        <button class="chip" data-value="毛利">毛利</button>
-        <button class="chip" data-value="山内">山内</button>
+      <div class="chips cols3" id="chips-confirm-name"><!-- 同上 -->
       </div>
     </div>
     <div id="shift-list"></div>
@@ -316,6 +308,7 @@
 
 <script src="gas-client.js"></script>
 <script src="sieg-nav.js"></script>
+<script src="/sieg-portal/sieg-roster.js"></script>
 <script>
   // ▼▼▼ GASのWebアプリURL（/execで終わるもの） ▼▼▼
   var GAS_URL = "https://script.google.com/macros/s/AKfycbwx4-wjr4Qmx6zeXDXZhht-65W7veveJvaXXmC9V5MQLipOLxLoWfz-XEUBau8NZ58h/exec";
@@ -343,11 +336,25 @@
     'ダル': '#00838F', 'NOON': '#AD1457', '九情': '#1565C0'
   };
 
-  // 名前の正規リスト（チップの data-value が唯一の定義元）
-  var VALID_NAMES = Array.prototype.map.call(
-    document.querySelectorAll('#chips-name .chip'),
-    function(b) { return b.dataset.value; }
-  );
+  // 名前の一覧はポータルの名簿（sieg-roster.js）の「パートナー様用シフト入力を使う人」。
+  // 名前ボタン（入力タブ・確認タブ）もここから作る。
+  var VALID_NAMES = window.SiegRoster ? SiegRoster.forTool('shiftPartner') : [];
+  ['chips-name', 'chips-confirm-name'].forEach(function(id) {
+    var box = document.getElementById(id);
+    VALID_NAMES.forEach(function(n) {
+      var b = document.createElement('button');
+      b.className = 'chip';
+      b.dataset.value = n;
+      b.textContent = n;
+      box.appendChild(b);
+    });
+  });
+  if (!window.SiegRoster) {
+    var rosterErr = document.createElement('div');
+    rosterErr.style.cssText = 'margin:10px 16px;padding:10px 14px;border-radius:12px;background:var(--sg-red-tint,#F9EAE8);color:var(--sg-red,#AE2B24);font-weight:700;font-size:14px';
+    rosterErr.textContent = '名前の一覧を読み込めませんでした。電波のよいところで再読み込みしてください。';
+    document.body.insertBefore(rosterErr, document.body.firstChild);
+  }
 
   var urlParams = new URLSearchParams(window.location.search);
   // URLで渡された名前はリストに載っている場合のみ採用する。
