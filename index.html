@@ -151,7 +151,7 @@
     .shift-item .detail { font-size: 14px; margin-bottom: 3px; }
     .shift-item .detail span { color: var(--sg-mute); font-size: 12px; margin-right: 6px; }
     .shift-actions { display: flex; gap: 8px; margin-top: 12px; }
-    .btn-edit, .btn-delete { flex: 1; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 700; background: var(--sg-surface); min-height: 48px; }
+    .btn-edit, .btn-delete { display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 700; background: var(--sg-surface); min-height: 48px; }
     .btn-edit { border: 2px solid var(--sg-primary); color: var(--sg-blue); }
     .btn-delete { border: 2px solid var(--sg-red); color: var(--sg-red); }
     .empty-msg, .loading-msg { text-align: center; color: var(--sg-mute); font-size: 14px; padding: 30px 0; }
@@ -164,7 +164,7 @@
      色は上ですべて --sg-* につないである。ここでは形と「選択中」の見せ方をそろえる。 */
   body { background: var(--sg-bg); color: var(--sg-ink); }
   /* 本文も下のタブと同じ幅で中央に置く（パソコンで開いても横に伸びない） */
-  .me-bar, .page { max-width: 560px; margin-left: auto; margin-right: auto; }
+  #me-bar, .page { max-width: 560px; margin-left: auto; margin-right: auto; }
   #staff-select-screen { background: var(--sg-bg); }
   .ss-title { color: var(--sg-ink); }
   .ss-sub, .ss-loading { color: var(--sg-mute); }
@@ -184,15 +184,7 @@
   .chip.selected { background: var(--sg-primary); border-color: var(--sg-primary); color: var(--sg-on-primary); }
   .cal-day.in-range { color: var(--sg-ink); }
   .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
-  /* その人だけのシフト入力のときの名前の帯 */
-  .me-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: var(--sg-surface); border-radius: var(--sg-r); box-shadow: var(--sg-lift);
-    padding: 12px 14px; margin-bottom: 10px; }
-  .me-bar[hidden] { display: none; }
-  .me-bar small { display: block; font-size: 11px; color: var(--sg-mute); }
-  .me-bar b { font-size: 18px; font-weight: 900; }
-  .me-bar button { border: 1px solid var(--sg-hair); background: var(--sg-sunk); color: var(--sg-ink);
-    border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 700; min-height: 40px; }
+  .sg-who[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -203,16 +195,20 @@
   </nav>
 
   <!-- ポータルで名前を選んで開いたとき（?staff=名前）は、その人だけのシフト入力になる -->
-  <div class="me-bar" id="me-bar" hidden>
-    <div><small>シフト入力</small><b><span id="me-name"></span> さん</b></div>
-    <button type="button" id="me-change">別の人にする</button>
-  </div>
+  <header class="sg-head" id="me-bar">
+    <div>
+      <div class="sg-eyebrow">Sieg 業務ポータル</div>
+      <h1 class="sg-title">シフト入力</h1>
+    </div>
+    <!-- ポータルで名前を選んで開いたとき（?staff=名前）だけ、右上に名前を出す。押すと名前の欄を開く -->
+    <button type="button" class="sg-who" id="me-change" aria-label="別の人にする" hidden><i id="me-initial"></i><span id="me-name"></span></button>
+  </header>
 
   <!-- ===== 入力タブ ===== -->
   <div id="page-input" class="page active">
 
     <div class="edit-banner" id="edit-banner">
-      <span class="banner-text">✏️ 修正モード：内容を変更して送信してください</span>
+      <span class="banner-text"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> 修正モード：内容を変更して送信してください</span>
       <button class="btn-cancel-edit" onclick="cancelEdit()">キャンセル</button>
     </div>
 
@@ -556,6 +552,7 @@
       history.replaceState(null, '', u.toString());
     } catch (e) {}
     document.getElementById('me-name').textContent = v;
+    document.getElementById('me-initial').textContent = String(v).charAt(0);
     document.getElementById('step-name').style.display = 'none';
     setName(v);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -830,8 +827,9 @@
     // その人だけのシフト入力：名前を選ぶ欄は出さず、上の帯に名前を出す
     document.getElementById('step-name').style.display = 'none';
     document.getElementById('confirm-name-card').style.display = 'none';
-    document.getElementById('me-bar').hidden = false;
+    document.getElementById('me-change').hidden = false;
     document.getElementById('me-name').textContent = staffFromUrl;
+    document.getElementById('me-initial').textContent = staffFromUrl.charAt(0);
     document.getElementById('me-change').addEventListener('click', function() {
       var card = document.getElementById('step-name');
       card.style.display = '';
@@ -1268,8 +1266,8 @@
       html += '<div class="detail"><span>開催場所</span>' + s.place + '</div>';
       if (s.hotel) html += '<div class="detail"><span>ホテル</span>' + s.hotel + '</div>';
       html += '<div class="shift-actions">';
-      html += '<button class="btn-edit" onclick="editShift(' + i + ')">✏️ 修正</button>';
-      html += '<button class="btn-delete" onclick="deleteShift(' + i + ')">🗑 削除</button>';
+      html += '<button class="btn-edit" onclick="editShift(' + i + ')"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> 修正</button>';
+      html += '<button class="btn-delete" onclick="deleteShift(' + i + ')"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg> 削除</button>';
       html += '</div></div>';
     });
     listEl.innerHTML = html;
@@ -1309,7 +1307,7 @@
 
     var resultEl = document.getElementById('result');
     resultEl.className = '';
-    resultEl.textContent = '✏️ 修正モード：変更して送信してください';
+    resultEl.textContent = '修正モード：変更して送信してください';
     window.scrollTo(0, 0);
   }
 
