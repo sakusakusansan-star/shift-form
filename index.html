@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>シフト入力</title>
 <meta name="theme-color" content="#EFF1F4" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0C1015" media="(prefers-color-scheme: dark)">
@@ -95,7 +95,7 @@
     .cal-header { display: flex; align-items: center; justify-content: center; margin-bottom: 12px; min-height: 24px; }
     .cal-title { font-size: 17px; font-weight: 800; color: var(--sg-blue); }
     .cal-dow-grid, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
-    .cal-dow { text-align: center; font-size: 11px; color: var(--sg-faint); padding: 4px 0; font-weight: 700; }
+    .cal-dow { text-align: center; font-size: 11px; color: var(--sg-mute); padding: 4px 0; font-weight: 700; }
     .cal-dow.sat { color: var(--sg-sat); } .cal-dow.sun { color: var(--sg-red); }
     .cal-day {
       text-align: center; font-size: 17px; font-weight: 600; border-radius: 10px;
@@ -118,15 +118,15 @@
     .cal-day.on .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
     .cal-day.on.conflict { box-shadow: inset 0 0 0 3px var(--sg-red); }
     .btn-clear-days { margin-top: 8px; padding: 6px 14px; border: 1px solid var(--sg-hair); border-radius: 999px; background: var(--sg-surface); color: var(--sg-mute); font-size: 13px; font-weight: 700; }
-    .cal-status { grid-column: 1 / -1; text-align: center; color: var(--sg-faint); font-size: 14px; font-weight: 700; padding: 28px 0; }
+    .cal-status { grid-column: 1 / -1; text-align: center; color: var(--sg-mute); font-size: 14px; font-weight: 700; padding: 28px 0; }
     .range-info.warn { color: var(--sg-red); }
     .booked-list { margin-top: 12px; border-top: 1px dashed var(--sg-hair); padding-top: 10px; font-size: 13px; }
     .booked-head { font-weight: 700; color: var(--sg-mute); margin-bottom: 4px; }
     .booked-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; color: var(--sg-ink); font-weight: 600; }
     .booked-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-    .booked-note { color: var(--sg-faint); font-weight: 600; padding: 4px 0; }
+    .booked-note { color: var(--sg-mute); font-weight: 600; padding: 4px 0; }
     .btn-retry { margin-left: 8px; padding: 6px 12px; border: 1.5px solid var(--sg-primary); border-radius: 8px; background: var(--sg-surface); color: var(--sg-blue); font-size: 13px; font-weight: 700; }
-    .range-info { text-align: center; margin-top: 10px; font-size: 14px; font-weight: 700; color: var(--sg-faint); min-height: 20px; }
+    .range-info { text-align: center; margin-top: 10px; font-size: 14px; font-weight: 700; color: var(--sg-mute); min-height: 20px; }
     .range-info.set { color: var(--sg-blue); }
 
     /* ===== スティッキー送信バー ===== */
@@ -149,12 +149,12 @@
     .shift-item { border: 1px solid var(--sg-hair); border-radius: 12px; padding: 14px; margin-bottom: 10px; background: var(--sg-sunk); }
     .shift-item .date-label { font-size: 16px; font-weight: 800; color: var(--sg-blue); margin-bottom: 6px; }
     .shift-item .detail { font-size: 14px; margin-bottom: 3px; }
-    .shift-item .detail span { color: var(--sg-faint); font-size: 12px; margin-right: 6px; }
+    .shift-item .detail span { color: var(--sg-mute); font-size: 12px; margin-right: 6px; }
     .shift-actions { display: flex; gap: 8px; margin-top: 12px; }
     .btn-edit, .btn-delete { flex: 1; padding: 13px; border-radius: 10px; font-size: 14px; font-weight: 700; background: var(--sg-surface); min-height: 48px; }
     .btn-edit { border: 2px solid var(--sg-primary); color: var(--sg-blue); }
     .btn-delete { border: 2px solid var(--sg-red); color: var(--sg-red); }
-    .empty-msg, .loading-msg { text-align: center; color: var(--sg-faint); font-size: 14px; padding: 30px 0; }
+    .empty-msg, .loading-msg { text-align: center; color: var(--sg-mute); font-size: 14px; padding: 30px 0; }
 
     .page { display: none; }
     .page.active { display: block; }
@@ -163,6 +163,8 @@
   /* ═══ 共通の見た目（sieg-theme.css）に合わせる ═══
      色は上ですべて --sg-* につないである。ここでは形と「選択中」の見せ方をそろえる。 */
   body { background: var(--sg-bg); color: var(--sg-ink); }
+  /* 本文も下のタブと同じ幅で中央に置く（パソコンで開いても横に伸びない） */
+  .me-bar, .page { max-width: 560px; margin-left: auto; margin-right: auto; }
   #staff-select-screen { background: var(--sg-bg); }
   .ss-title { color: var(--sg-ink); }
   .ss-sub, .ss-loading { color: var(--sg-mute); }
