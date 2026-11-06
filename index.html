@@ -180,7 +180,15 @@
   .summary:empty, #result:empty { display: none; }
   .submit-bar { padding-top: 8px; padding-bottom: 8px; }
   body { padding-bottom: calc(96px + var(--sg-tabbar-h)); }
-  .btn-submit.pending { background: var(--sg-sunk); color: var(--sg-mute); box-shadow: inset 0 0 0 1px var(--sg-hair); }
+  /* ほかの画面の送信バー（sieg-theme.css の .sg-actionbar / .sg-primary）と同じ見た目に。
+     案内（あと何つ・選んだ内容）はボタンの上の1行。足りないときはボタンを薄くする（押すと足りない所へ案内する） */
+  .submit-bar { left: 0; right: 0; max-width: none; padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+    background: color-mix(in srgb, var(--sg-surface) 92%, transparent);
+    -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); box-shadow: none; }
+  .submit-bar > * { max-width: 528px; margin-left: auto; margin-right: auto; }
+  .summary { font-size: 12px; font-weight: 700; color: var(--sg-mute); line-height: 1.4; }
+  .btn-submit { display: block; min-height: 52px; padding: 0; border-radius: 14px; font-size: 16px; font-weight: 900; letter-spacing: .04em; }
+  .btn-submit.pending, .btn-submit:disabled { background: var(--sg-primary); color: var(--sg-on-primary); box-shadow: none; opacity: .45; }
   .chip.selected { background: var(--sg-primary); border-color: var(--sg-primary); color: var(--sg-on-primary); }
   .cal-day.in-range { color: var(--sg-ink); }
   .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
@@ -774,6 +782,13 @@
     return '';
   }
 
+  // 送信ボタンの上の案内：足りないときは「あと◯つ」、そろったら選んだ内容
+  var stepsLeft = 0, summaryText = '';   // updateProgress より前に置く（読み込み直後にも呼ばれるため）
+  function paintSummary() {
+    var el = document.getElementById('summary');
+    if (el) el.textContent = stepsLeft ? 'あと' + stepsLeft + 'つ入力すると送れます' : (summaryText || '');
+  }
+
   function updateProgress() {
     var completedCount = 0;
     stepOrder.forEach(function(id) {
@@ -786,11 +801,13 @@
       var sumEl = document.getElementById('stepsum-' + id);
       if (sumEl) sumEl.textContent = getSummaryText(id);
     });
-    // 送信ボタンに残りの数を出す（押せば足りない所を教えるので、押せないようにはしない）
+    // 残りの数はボタンの上の案内に出す（押せば足りない所を教えるので、押せないようにはしない）
     var left = stepOrder.length - completedCount;
     var btn = document.getElementById('btn-submit');
-    btn.textContent = left ? 'あと' + left + 'つ入力' : (editMode ? '修正を送信する' : '送信する');
+    btn.textContent = editMode ? '修正を送信する' : '送信する';
     btn.classList.toggle('pending', left > 0);
+    stepsLeft = left;
+    paintSummary();
   }
 
   // 手順の番号は、表示している手順だけで 1 から振る
@@ -1116,7 +1133,8 @@
     if (rs.length) parts.push(calMonth + '月' + rangesText(rs));
     var place = document.getElementById('place').value;
     if (place) parts.push(place);
-    document.getElementById('summary').textContent = parts.join(' ｜ ');
+    summaryText = parts.join(' ｜ ');
+    paintSummary();
   }
 
   // ===== 送信 =====
@@ -1239,11 +1257,12 @@
   function loadMyShifts() {
     var listEl = document.getElementById('shift-list');
     if (!confirmName) { listEl.innerHTML = '<div class="empty-msg">上から名前を選択してください</div>'; return; }
-    listEl.innerHTML = '<div class="loading-msg">読み込み中...</div>';
+    listEl.innerHTML = '<div class="sg-skel-wrap" aria-busy="true" aria-label="読み込み中"><div class="sg-skel card"></div><div class="sg-skel card"></div><div class="sg-skel card"></div></div>';
     fetchMyShifts(confirmName, true)
       .then(function(shifts) { renderShiftList(shifts); })
       .catch(function(err) {
-        listEl.innerHTML = '<div class="empty-msg">❌ 読み込みエラー: ' + err.message + '<br><button class="btn-submit" style="margin-top:10px;max-width:200px;padding:10px;font-size:13px;" onclick="loadMyShifts()">再試行</button></div>';
+        listEl.innerHTML = GasClient.errorHtml(err, '読み込めませんでした', 'もう一度読み込む');
+        listEl.querySelector('[data-sg-retry]').onclick = function () { loadMyShifts(); };
       });
   }
 
@@ -1350,7 +1369,7 @@
       torihiki: s.torihiki
     })
       .then(function() { loadMyShifts(); })
-      .catch(function(err) { alert('削除エラー: ' + err.message); });
+      .catch(function(err) { alert('削除できませんでした。' + err.message); });
   }
 </script>
 </body>
