@@ -164,7 +164,7 @@
      色は上ですべて --sg-* につないである。ここでは形と「選択中」の見せ方をそろえる。 */
   body { background: var(--sg-bg); color: var(--sg-ink); }
   /* 本文も下のタブと同じ幅で中央に置く（パソコンで開いても横に伸びない） */
-  #me-bar, .page { max-width: 560px; margin-left: auto; margin-right: auto; }
+  /* 外枠 .sg-page（sieg-theme.css）が幅を決める。パソコンでは入力の右に一覧を並べる */
   #staff-select-screen { background: var(--sg-bg); }
   .ss-title { color: var(--sg-ink); }
   .ss-sub, .ss-loading { color: var(--sg-mute); }
@@ -193,15 +193,21 @@
   .cal-day.in-range { color: var(--sg-ink); }
   .cal-day.start .cal-mark, .cal-day.end .cal-mark { box-shadow: 0 0 0 1.5px var(--sg-on-primary); }
   .sg-who[hidden] { display: none; }
+  /* パソコン：右に一覧が出ているので、下のタブ（入力だけになる）は出さない */
+  @media (min-width: 1000px) {
+    .sg-tabbar { display: none; }
+    .submit-bar { bottom: 0; }
+  }
 </style>
 </head>
 <body>
 
   <nav class="tabs sg-tabbar" aria-label="画面の切り替え">
     <button type="button" class="tab sg-tab active" id="tab-input" onclick="switchTab('input')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>入力</button>
-    <button type="button" class="tab sg-tab" id="tab-confirm" onclick="switchTab('confirm')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>確認・修正</button>
+    <button type="button" class="tab sg-tab" id="tab-confirm" data-sg-pairtab onclick="switchTab('confirm')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>一覧</button>
   </nav>
 
+  <div class="sg-page" data-sg-two>
   <!-- ポータルで名前を選んで開いたとき（?staff=名前）は、その人だけのシフト入力になる -->
   <header class="sg-head" id="me-bar">
     <div>
@@ -213,7 +219,7 @@
   </header>
 
   <!-- ===== 入力タブ ===== -->
-  <div id="page-input" class="page active">
+  <div id="page-input" class="page active" data-sg-pair="main">
 
     <div class="edit-banner" id="edit-banner">
       <span class="banner-text"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> 修正モード：内容を変更して送信してください</span>
@@ -228,6 +234,25 @@
       </div>
       <div class="chips cols3" id="chips-name"><!-- 名前ボタンは名簿（sieg-roster.js）から作る -->
       </div>
+    </div>
+
+    <div class="card" id="step-date">
+      <div class="card-label">
+        <span class="step-num" id="stepnum-date">4</span>
+        <span class="step-label-text">日にち</span>
+        <span class="step-done-summary" id="stepsum-date"></span>
+      </div>
+      <div class="cal-header">
+        <span class="cal-title" id="calTitle"></span>
+      </div>
+      <div class="cal-dow-grid">
+        <div class="cal-dow">月</div><div class="cal-dow">火</div><div class="cal-dow">水</div>
+        <div class="cal-dow">木</div><div class="cal-dow">金</div>
+        <div class="cal-dow sat">土</div><div class="cal-dow sun">日</div>
+      </div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="range-info" id="rangeInfo"></div>
+      <div class="booked-list" id="bookedList" style="display:none;"></div>
     </div>
 
     <div class="card" id="step-torihiki">
@@ -260,25 +285,6 @@
       </div>
     </div>
 
-    <div class="card" id="step-date">
-      <div class="card-label">
-        <span class="step-num" id="stepnum-date">4</span>
-        <span class="step-label-text">日にち</span>
-        <span class="step-done-summary" id="stepsum-date"></span>
-      </div>
-      <div class="cal-header">
-        <span class="cal-title" id="calTitle"></span>
-      </div>
-      <div class="cal-dow-grid">
-        <div class="cal-dow">月</div><div class="cal-dow">火</div><div class="cal-dow">水</div>
-        <div class="cal-dow">木</div><div class="cal-dow">金</div>
-        <div class="cal-dow sat">土</div><div class="cal-dow sun">日</div>
-      </div>
-      <div class="cal-grid" id="calGrid"></div>
-      <div class="range-info" id="rangeInfo"></div>
-      <div class="booked-list" id="bookedList" style="display:none;"></div>
-    </div>
-
     <div class="card" id="step-place">
       <div class="card-label">
         <span class="step-num" id="stepnum-place">5</span>
@@ -296,7 +302,7 @@
   </div>
 
   <!-- ===== 確認・修正タブ ===== -->
-  <div id="page-confirm" class="page">
+  <div id="page-confirm" class="page" data-sg-pair="side">
     <div class="card" id="confirm-name-card">
       <div class="card-label" style="justify-content:flex-start;">名前を選択</div>
       <div class="chips cols3" id="chips-confirm-name"><!-- 同上 -->
@@ -305,10 +311,12 @@
     <div id="shift-list"></div>
   </div>
 
+  </div><!-- /.sg-page -->
+
   <!-- ===== スティッキー送信バー ===== -->
-  <div class="submit-bar" id="submit-bar">
-    <div class="summary" id="summary"></div>
-    <button class="btn-submit" id="btn-submit" onclick="submitForm()">送信する</button>
+  <div class="submit-bar" id="submit-bar" data-sg-actionbar>
+    <div class="summary" id="summary" data-sg-hint></div>
+    <button class="btn-submit" id="btn-submit" data-sg-primary onclick="submitForm()">送信する</button>
     <div id="result"></div>
   </div>
 
@@ -332,7 +340,7 @@
   var editOriginal = null;
 
   // カレンダーはシフト表（GAS）の月に固定する。読み込むまで日付は押せない。
-  var monthLoaded = false, monthError = '';
+  var monthLoaded = false, monthError = '', monthErr = null;
   // 選択中の名前の登録済み予定（getMyShifts の結果）。入力タブと確認タブで共有する。
   var shiftCache = { name: null, list: null, error: null, promise: null };
 
@@ -369,8 +377,8 @@
   var staffFromUrl = (staffParam && VALID_NAMES.indexOf(staffParam) !== -1) ? staffParam : null;
 
   var stepOrder = staffFromUrl
-    ? ['torihiki', 'carrier', 'date', 'place']
-    : ['name', 'torihiki', 'carrier', 'date', 'place'];
+    ? ['date', 'torihiki', 'carrier', 'place']
+    : ['name', 'date', 'torihiki', 'carrier', 'place'];   // 社員用のシフト入力と同じ並び（日にち → 内容）
 
   // 開催場所のボタン（4つ）。1〜3番目はその人がよく入れる場所、4番目は最近入れた場所。
   // 記録がまだ少ないうちは、この並びで埋める。
@@ -382,7 +390,12 @@
   // 読むだけの操作だけ自動でやり直す。送信・削除は送信ログが2行になるのでやり直さない。
   var RETRY_SAFE_ACTIONS = { getMonthInfo: true, getMyShifts: true, getPlaceStats: true };
 
+  // 「元に戻す」を待っている削除があれば、ほかの書き込みの前に先に済ませる（順番が入れ替わらないように）
   function callApi(action, params, timeoutMs) {
+    if (/^get/.test(action)) return callApiNow(action, params, timeoutMs);
+    return SiegNav.flushUndo().then(function() { return callApiNow(action, params, timeoutMs); });
+  }
+  function callApiNow(action, params, timeoutMs) {
     var body = Object.assign({ action: action }, params || {});
     return GasClient.post(GAS_URL, body, {
       timeoutMs: timeoutMs || 30000,
@@ -392,7 +405,7 @@
       return json.data;
     }, function(err) {
       if (err.maybeDone) {
-        err.message += '（シフト表には反映済みの場合があります。もう一度送る前に「確認・修正」タブで確かめてください）';
+        err.message += '（シフト表には反映済みの場合があります。もう一度送る前に「一覧」タブで確かめてください）';
       }
       throw err;
     });
@@ -402,7 +415,7 @@
   // GASが書き込めるのはシフト表の月だけなので、カレンダーもその月に固定する。
   // 読み込みが終わるまでは日付を押せないようにして、未確定の月で送られるのを防ぐ。
   function loadMonth() {
-    monthError = '';
+    monthError = ''; monthErr = null;
     renderCal();
     callApi('getMonthInfo')
       .then(function(info) {
@@ -419,7 +432,7 @@
         updateProgress();
       })
       .catch(function(err) {
-        monthError = err.message;
+        monthError = err.message; monthErr = err;
         renderCal();
       });
   }
@@ -783,10 +796,14 @@
   }
 
   // 送信ボタンの上の案内：足りないときは「あと◯つ」、そろったら選んだ内容
-  var stepsLeft = 0, summaryText = '';   // updateProgress より前に置く（読み込み直後にも呼ばれるため）
+  var stepsLeft = 0, summaryText = '', sendingNow = false;   // updateProgress より前に置く（読み込み直後にも呼ばれるため）
   function paintSummary() {
     var el = document.getElementById('summary');
-    if (el) el.textContent = stepsLeft ? 'あと' + stepsLeft + 'つ入力すると送れます' : (summaryText || '');
+    var noDate = !editMode && !selectedRanges().length;
+    if (el) el.textContent = noDate ? '日にちを選ぶと送信できます' : stepsLeft ? 'あと' + stepsLeft + 'つ入力すると送れます' : (summaryText || '');
+    // 日にちを選ぶまでは送信ボタンを出さず、案内の1行だけにする（sieg-nav.js が細い表示に替える）
+    var b = document.getElementById('btn-submit');
+    if (b && !sendingNow) b.disabled = noDate;
   }
 
   function updateProgress() {
@@ -848,9 +865,7 @@
     document.getElementById('me-name').textContent = staffFromUrl;
     document.getElementById('me-initial').textContent = staffFromUrl.charAt(0);
     document.getElementById('me-change').addEventListener('click', function() {
-      var card = document.getElementById('step-name');
-      card.style.display = '';
-      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      SiegNav.pickName(VALID_NAMES, staffFromUrl).then(function(n) { if (n && n !== staffFromUrl) switchPerson(n); });
     });
     setName(staffFromUrl);
   } else {
@@ -862,12 +877,17 @@
 
   // ===== タブ切替 =====
   function switchTab(tab) {
+    // パソコンの幅では、入力の右に一覧を並べる（「一覧」タブは出さない）
+    var wide = SiegNav.wide();
+    if (wide && tab === 'confirm') tab = 'input';
+    document.body.classList.toggle('sg-two', tab === 'input');
     document.getElementById('tab-input').classList.toggle('active', tab === 'input');
     document.getElementById('tab-confirm').classList.toggle('active', tab === 'confirm');
     document.getElementById('page-input').classList.toggle('active', tab === 'input');
     document.getElementById('page-confirm').classList.toggle('active', tab === 'confirm');
     document.getElementById('submit-bar').style.display = (tab === 'input') ? 'block' : 'none';
     if (tab === 'confirm') { exitEditMode(); loadMyShifts(); }
+    else if (wide) loadMyShifts();
   }
 
   // ===== カレンダー =====
@@ -881,13 +901,9 @@
       var st = document.createElement('div');
       st.className = 'cal-status';
       if (monthError) {
-        st.textContent = '⚠️ 読み込みエラー: ' + monthError;
-        var retry = document.createElement('button');
-        retry.className = 'btn-retry';
-        retry.textContent = '再試行';
-        retry.onclick = loadMonth;
-        st.appendChild(document.createElement('br'));
-        st.appendChild(retry);
+        st.style.padding = '0'; st.style.fontWeight = '400';
+        st.innerHTML = GasClient.errorHtml(monthErr || new Error(monthError), 'シフト表を読み込めませんでした', 'もう一度読み込む');
+        st.querySelector('[data-sg-retry]').onclick = loadMonth;
       } else {
         st.textContent = 'シフト表を読み込み中…';
       }
@@ -1162,7 +1178,8 @@
 
     resultEl.className = '';
     resultEl.textContent = '確認中...';
-    btn.disabled = true;
+    sendingNow = true; btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    function release() { sendingNow = false; btn.removeAttribute('aria-busy'); btn.disabled = false; paintSummary(); }
 
     var payload = { data: data };
     // 修正モードでは元レコードのキーを付ける（GAS側で該当行を更新するために必要）
@@ -1173,7 +1190,7 @@
       .then(function(ok) {
         if (!ok) {
           resultEl.textContent = '';
-          btn.disabled = false;
+          release();
           return;
         }
         resultEl.textContent = '送信中...';
@@ -1209,10 +1226,8 @@
 
     function done() {
       rememberPlace(data.name, data.place);
-      resultEl.className = 'success';
-      resultEl.textContent = '✅ ' + (editMode ? '修正しました！' : calMonth + '月' + rangesText(ranges) + ' を送信しました！');
-      btn.disabled = false;
-      if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+      resultEl.className = ''; resultEl.textContent = '';
+      var wasEdit = editMode;
 
       startDay = null; endDay = null;
       picked = {};
@@ -1224,14 +1239,18 @@
       updateProgress();
       fetchMyShifts(sel.name, true);
 
+      release();
       scrollToStep('date');
-
-      setTimeout(function() { resultEl.textContent = ''; }, 4000);
+      if (SiegNav.wide()) loadMyShifts();
+      // 送ったあと：どのツールも同じ形で知らせる（次にやることを並べる）
+      SiegNav.done({ title: wasEdit ? '修正しました' : '送信しました', sub: calMonth + '月' + rangesText(ranges) + '　' + data.torihiki + '（' + data.place + '）', next: [
+        { label: '続けて入力する', value: 'more' }, { label: '一覧を見る', value: 'list' }, { label: 'ポータルへ戻る', href: SiegNav.portalUrl }
+      ] }).then(function(v) { if (v === 'list') switchTab('confirm'); });
     }
 
     function fail(err) {
       showError(err.message);
-      btn.disabled = false;
+      release();
     }
 
     function showError(msg) {
@@ -1246,17 +1265,16 @@
     return fetchMyShifts(sel.name).then(function() {
       var conf = rangesConflicts(ranges);
       if (!conf.length) return true;
-      return confirm('次の日には既に予定が入っています。\n\n' + describeConflicts(conf).join('\n') +
-                     '\n\n送信すると上書きされます。よろしいですか？');
+      return SiegNav.confirm(describeConflicts(conf).join('\n') + '\n\n送信すると上書きされます。', { title: 'もう予定が入っている日があります', ok: '上書きする' });
     }, function() {
-      return confirm('登録済みの予定を確認できませんでした（通信エラー）。\nこのまま送信しますか？');
+      return SiegNav.confirm('通信がうまくいかず、登録済みの予定を確かめられませんでした。', { title: 'このまま送信しますか？', ok: 'このまま送る' });
     });
   }
 
   // ===== 確認・修正 =====
   function loadMyShifts() {
     var listEl = document.getElementById('shift-list');
-    if (!confirmName) { listEl.innerHTML = '<div class="empty-msg">上から名前を選択してください</div>'; return; }
+    if (!confirmName) { listEl.innerHTML = SiegNav.empty('名前を選ぶと表示されます', '上で名前を選んでください'); return; }
     listEl.innerHTML = '<div class="sg-skel-wrap" aria-busy="true" aria-label="読み込み中"><div class="sg-skel card"></div><div class="sg-skel card"></div><div class="sg-skel card"></div></div>';
     fetchMyShifts(confirmName, true)
       .then(function(shifts) { renderShiftList(shifts); })
@@ -1271,7 +1289,7 @@
     loadedShifts = shifts || [];
     var listEl = document.getElementById('shift-list');
     if (loadedShifts.length === 0) {
-      listEl.innerHTML = '<div class="empty-msg">入力済みのシフトはありません</div>';
+      listEl.innerHTML = SiegNav.empty('入力済みのシフトはありません', '「入力」で日にちと内容を選んで送ると、ここに並びます');
       return;
     }
     var html = '';
@@ -1286,7 +1304,7 @@
       if (s.hotel) html += '<div class="detail"><span>ホテル</span>' + s.hotel + '</div>';
       html += '<div class="shift-actions">';
       html += '<button class="btn-edit" onclick="editShift(' + i + ')"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> 修正</button>';
-      html += '<button class="btn-delete" onclick="deleteShift(' + i + ')"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg> 削除</button>';
+      html += '<button class="btn-delete" onclick="deleteShift(' + i + ', this)"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg> 削除</button>';
       html += '</div></div>';
     });
     listEl.innerHTML = html;
@@ -1350,27 +1368,30 @@
     window.scrollTo(0, 0);
   }
 
-  function deleteShift(i) {
-    var s = loadedShifts[i];
-    var label = s.year + '年' + s.month + '月' + s.startDay + '日'
+  // 削除：行をすぐ隠して「元に戻す」を出す。押されなければ5秒後に消す（SiegNav.undoable）
+  function deleteShift(i, btn) {
+    var s = loadedShifts[i], who = confirmName;
+    var label = s.month + '月' + s.startDay + '日'
               + (s.startDay !== s.endDay ? '〜' + s.endDay + '日' : '')
               + '（' + s.torihiki + '）';
-    if (!confirm(confirmName + ' の ' + label + ' を削除しますか？')) return;
-    // 年月と取引先まで送って対象行を一意に絞る。
-    // これが無いと別の月の同じ日程まで消える恐れがある。
-    callApi('deleteShift', {
-      id: (s.id !== undefined ? s.id : null),
-      row: (s.row !== undefined ? s.row : null),
-      name: confirmName,
-      year: s.year,
-      month: s.month,
-      startDay: s.startDay,
-      endDay: s.endDay,
-      torihiki: s.torihiki
-    })
-      .then(function() { loadMyShifts(); })
-      .catch(function(err) { alert('削除できませんでした。' + err.message); });
+    SiegNav.undoable({
+      text: label + ' を消しました', rows: btn ? btn.closest('.shift-item') : null,
+      // 年月と取引先まで送って対象行を一意に絞る。これが無いと別の月の同じ日程まで消える恐れがある。
+      commit: function() {
+        return callApi('deleteShift', {
+          id: (s.id !== undefined ? s.id : null),
+          row: (s.row !== undefined ? s.row : null),
+          name: who, year: s.year, month: s.month, startDay: s.startDay, endDay: s.endDay, torihiki: s.torihiki
+        });
+      },
+      onDone: function() { loadMyShifts(); fetchMyShifts(who, true); },
+      onFail: function() { loadMyShifts(); }
+    });
   }
+
+  // 入力の画面を出しているあいだは body に .sg-two（パソコンの幅なら、右に一覧が並ぶ）
+  document.body.classList.add('sg-two');
+  if (SiegNav.wide()) loadMyShifts();
 </script>
 </body>
 </html>
