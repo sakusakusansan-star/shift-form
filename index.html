@@ -9,6 +9,9 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
+  <!-- Google（GAS）への接続を先に始めておく（最初の読み込みが少し早くなる） -->
+  <link rel="preconnect" href="https://script.google.com" crossorigin>
+  <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
   <link rel="stylesheet" href="sieg-theme.css">
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
@@ -414,18 +417,28 @@
   // ── シフト表の月を読み込む ──────────────────────────────
   // GASが書き込めるのはシフト表の月だけなので、カレンダーもその月に固定する。
   // 読み込みが終わるまでは日付を押せないようにして、未確定の月で送られるのを防ぐ。
+  // 前回の月が端末に残っていれば、カレンダーをすぐ出す（裏でシフト表を読んで確かめる）。
+  // 送信は、最新の月を確かめ終えてから（monthConfirmed）。月が替わっていたら、選びかけの日は捨てる
+  var monthConfirmed = false;
   function loadMonth() {
     monthError = ''; monthErr = null;
+    monthConfirmed = false;
+    var cached = !monthLoaded && SiegNav.cacheGet('shiftform:month');
+    if (cached && cached.year && cached.month) { calYear = cached.year; calMonth = cached.month; monthLoaded = true; }
     renderCal();
+    if (monthLoaded) { renderQuickPlaces(); updateSummary(); updateProgress(); }
     callApi('getMonthInfo')
       .then(function(info) {
         // "2026" や "9月" のような文字列でも受け付ける。
         var y = parseInt(info && info.year, 10);
         var m = parseInt(info && info.month, 10);
         if (!y || !(m >= 1 && m <= 12)) throw new Error('シフト表の年月（A1・B1）を読み取れませんでした');
+        if (monthLoaded && (calYear !== y || calMonth !== m)) { picked = {}; startDay = null; endDay = null; }
         calYear = y;
         calMonth = m;
         monthLoaded = true;
+        monthConfirmed = true;
+        SiegNav.cacheSet('shiftform:month', { year: y, month: m });
         renderCal();
         renderQuickPlaces();
         updateSummary();
@@ -433,6 +446,7 @@
       })
       .catch(function(err) {
         monthError = err.message; monthErr = err;
+        monthLoaded = false;   // 前回の月を出していても、確かめられなければ使わない
         renderCal();
       });
   }
@@ -1175,6 +1189,7 @@
     if (!ranges.length) { showError('日にちを選んでください'); return; }
     if (!data.place) { showError('開催場所を入力してください'); return; }
     if (!monthLoaded) { showError('シフト表の読み込みが終わってから送信してください'); return; }
+    if (!monthConfirmed) { showError('シフト表の月を確かめています。数秒待ってから、もう一度押してください'); return; }
 
     resultEl.className = '';
     resultEl.textContent = '確認中...';
