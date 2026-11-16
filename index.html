@@ -207,6 +207,15 @@
     .sg-tabbar { display: none; }
     .submit-bar { bottom: 0; }
   }
+
+  /* ═══ 新しいデザイン：カレンダーは社員のシフト入力と同じ箱の形（押せる日がひと目で分かる） ═══ */
+  .cal-grid { gap: 4px; }
+  .cal-day:not(.empty) { background: var(--sg-sunk); border: 1px solid var(--sg-hair); border-radius: 10px; }
+  .cal-day.on, .cal-day.start, .cal-day.end { background: var(--sg-primary); border-color: var(--sg-primary); }
+  .cal-day.in-range { background: var(--sg-blue-tint); border-color: transparent; }
+  #chips-carrier .chip.selected[data-carrier="docomo"] { background: var(--sg-docomo); border-color: var(--sg-docomo); color: #fff; }
+  #chips-carrier .chip.selected[data-carrier="au"] { background: var(--sg-au); border-color: var(--sg-au); color: #fff; }
+  #chips-carrier .chip.selected[data-carrier="softbank"] { background: var(--sg-softbank); border-color: var(--sg-softbank); color: #fff; }
 </style>
 </head>
 <body>
@@ -290,9 +299,9 @@
         <span class="step-done-summary" id="stepsum-carrier"></span>
       </div>
       <div class="chips cols3" id="chips-carrier">
-        <button class="chip" data-value="docomo">docomo</button>
-        <button class="chip" data-value="au">au</button>
-        <button class="chip" data-value="SoftBank">SoftBank</button>
+        <button class="chip" data-value="docomo" data-carrier="docomo">docomo</button>
+        <button class="chip" data-value="au" data-carrier="au">au</button>
+        <button class="chip" data-value="SoftBank" data-carrier="softbank">SoftBank</button>
       </div>
     </div>
 
@@ -1412,8 +1421,8 @@
       html += '<div class="detail"><span>開催場所</span>' + s.place + '</div>';
       if (s.hotel) html += '<div class="detail"><span>ホテル</span>' + s.hotel + '</div>';
       html += '<div class="shift-actions">';
-      html += '<button class="btn-edit" onclick="editShift(' + i + ')"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> 修正</button>';
-      html += '<button class="btn-delete" onclick="deleteShift(' + i + ', this)"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg> 削除</button>';
+      html += '<button class="btn-edit" onclick="editShift(' + i + ')"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg> 直す</button>';
+      html += '<button class="btn-delete" onclick="deleteShift(' + i + ', this)"><svg class="sg-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg> 消す</button>';
       html += '</div></div>';
     });
     listEl.innerHTML = html;
