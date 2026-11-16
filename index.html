@@ -435,7 +435,14 @@
     monthError = ''; monthErr = null;
     monthConfirmed = false;
     var cached = !monthLoaded && SiegNav.cacheGet('shiftform:month');
-    if (cached && cached.year && cached.month) { calYear = cached.year; calMonth = cached.month; monthLoaded = true; }
+    if (cached && cached.year && cached.month) {
+      // 前回のシフト表の月と、月を指定して読めたか（GAS の版）から、開く月をすぐ決める
+      sheetYm = { year: cached.year, month: cached.month };
+      if (SiegNav.cacheGet('shiftform:gas')) gasMonthOk = true;
+      computeViewMonths();
+      var dv = defaultView(); calYear = dv.year; calMonth = dv.month;
+      monthLoaded = true;
+    }
     renderCal();
     if (monthLoaded) { renderQuickPlaces(); updateSummary(); updateProgress(); }
     callApi('getMonthInfo')
@@ -444,14 +451,16 @@
         var y = parseInt(info && info.year, 10);
         var m = parseInt(info && info.month, 10);
         if (!y || !(m >= 1 && m <= 12)) throw new Error('シフト表の年月（A1・B1）を読み取れませんでした');
-        if (monthLoaded && (calYear !== y || calMonth !== m)) { picked = {}; startDay = null; endDay = null; }
-        calYear = y;
-        calMonth = m;
-        monthLoaded = true;
-        monthConfirmed = true;
         sheetYm = { year: y, month: m };
         SiegNav.cacheSet('shiftform:month', { year: y, month: m });
         computeViewMonths();
+        // 開いている月が選べる月に残っていればそのまま。無ければ今月（無ければシフト表の月）に。月が替わったら選びかけは捨てる
+        var keep = monthLoaded && viewIndex() >= 0, target = keep ? { year: calYear, month: calMonth } : defaultView();
+        if (monthLoaded && (calYear !== target.year || calMonth !== target.month)) { picked = {}; startDay = null; endDay = null; }
+        calYear = target.year;
+        calMonth = target.month;
+        monthLoaded = true;
+        monthConfirmed = true;
         renderCal();
         renderQuickPlaces();
         updateSummary();
@@ -507,6 +516,13 @@
     }
     renderMonthNav();
   }
+  // 開く月：今月が選べれば今月（11月は11月、12月は12月）。選べなければ、いまのシフト表の月
+  function defaultView() {
+    var t = new Date(), ty = t.getFullYear(), tm = t.getMonth() + 1;
+    for (var i = 0; i < viewMonths.length; i++) if (viewMonths[i].year === ty && viewMonths[i].month === tm) return viewMonths[i];
+    return sheetYm;
+  }
+  var viewMoved = false;   // 自分で月を替えた・選び始めたら、あとから自動で月を替えない
   function viewIndex() {
     for (var i = 0; i < viewMonths.length; i++) if (viewMonths[i].year === calYear && viewMonths[i].month === calMonth) return i;
     return -1;
@@ -530,14 +546,21 @@
   }
   function stepViewMonth(d) {
     var m = viewMonths[viewIndex() + d];
-    if (m && !editMode) setViewMonth(m.year, m.month);
+    if (m && !editMode) { viewMoved = true; setViewMonth(m.year, m.month); }
   }
   document.getElementById('cal-prev').addEventListener('click', function() { stepViewMonth(-1); });
   document.getElementById('cal-next').addEventListener('click', function() { stepViewMonth(1); });
   // GAS の版を確かめる（月を指定した読み込みができるか）
   if (GAS_URL) GasClient.get(GAS_URL, { check: 1 }).then(function(r) {
     gasMonthOk = !!(r && r.version && String(r.version) >= '2026-11-13');
+    SiegNav.cacheSet('shiftform:gas', gasMonthOk);
     computeViewMonths();
+    if (!sheetYm || !monthLoaded) return;
+    // 開いている月が選べなくなった（古い GAS）なら、シフト表の月へ。
+    // まだ自分で月を替えていなければ、今月で開き直す（版が分かる前は、シフト表の月を出していたため）
+    var target = viewIndex() < 0 ? sheetYm
+      : (!viewMoved && !editMode && !Object.keys(picked).length && !startDay) ? defaultView() : null;
+    if (target && (target.year !== calYear || target.month !== calMonth)) setViewMonth(target.year, target.month);
   }).catch(function() {});
 
   function onShiftsUpdated() {
@@ -1400,6 +1423,7 @@
     var shift = loadedShifts[i];
     switchTab('input');
     exitEditMode();
+    viewMoved = true;
     setViewMonth(Number(shift.year), Number(shift.month));   // ほかの月の予定なら、その月に切り替える
 
     sel.name = confirmName;
