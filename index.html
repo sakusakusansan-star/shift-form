@@ -97,6 +97,12 @@
     /* ===== カレンダー ===== */
     .cal-header { display: flex; align-items: center; justify-content: center; margin-bottom: 12px; min-height: 24px; }
     .cal-title { font-size: 17px; font-weight: 800; color: var(--sg-blue); }
+    .cal-header { gap: 8px; }
+    .cal-sub { font-size: 12px; font-weight: 700; color: var(--sg-mute); }
+    .cal-sub:empty { display: none; }
+    .cal-nav { width: 40px; height: 36px; border: 0; border-radius: 10px; background: var(--sg-sunk); color: var(--sg-blue); font-size: 18px; font-weight: 800; cursor: pointer; }
+    .cal-nav:first-child { margin-right: auto; } .cal-nav:last-child { margin-left: auto; }
+    .cal-nav[hidden] { display: inline-block; visibility: hidden; }
     .cal-dow-grid, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
     .cal-dow { text-align: center; font-size: 11px; color: var(--sg-mute); padding: 4px 0; font-weight: 700; }
     .cal-dow.sat { color: var(--sg-sat); } .cal-dow.sun { color: var(--sg-red); }
@@ -246,7 +252,9 @@
         <span class="step-done-summary" id="stepsum-date"></span>
       </div>
       <div class="cal-header">
-        <span class="cal-title" id="calTitle"></span>
+        <button type="button" class="cal-nav" id="cal-prev" aria-label="前の月" hidden>‹</button>
+        <span class="cal-title" id="calTitle"></span><span class="cal-sub" id="calSub"></span>
+        <button type="button" class="cal-nav" id="cal-next" aria-label="次の月" hidden>›</button>
       </div>
       <div class="cal-dow-grid">
         <div class="cal-dow">月</div><div class="cal-dow">火</div><div class="cal-dow">水</div>
@@ -344,6 +352,9 @@
 
   // カレンダーはシフト表（GAS）の月に固定する。読み込むまで日付は押せない。
   var monthLoaded = false, monthError = '', monthErr = null;
+  // 選べる月。sheetYm はいまのシフト表の月。シフト表を先に来月へ切り替えたときは、今月（「（保存）」のタブ）も選べる。
+  // 月を指定した読み込みは、GAS が 2026-11-13 以降のときだけ使える（gasMonthOk）。古い GAS のあいだは今までどおり1か月だけ
+  var sheetYm = null, gasMonthOk = false, viewMonths = [];
   // 選択中の名前の登録済み予定（getMyShifts の結果）。入力タブと確認タブで共有する。
   var shiftCache = { name: null, list: null, error: null, promise: null };
 
@@ -438,7 +449,9 @@
         calMonth = m;
         monthLoaded = true;
         monthConfirmed = true;
+        sheetYm = { year: y, month: m };
         SiegNav.cacheSet('shiftform:month', { year: y, month: m });
+        computeViewMonths();
         renderCal();
         renderQuickPlaces();
         updateSummary();
@@ -453,12 +466,17 @@
 
   // ── 登録済みの予定を読み込む ────────────────────────────
   // force=false なら読み込み済みの結果を使い回す。読み込み中なら同じ通信を待つ。
+  function viewKey() { return calYear ? calYear + '-' + calMonth : ''; }
   function fetchMyShifts(name, force) {
-    if (shiftCache.name === name) {
+    var key = viewKey();
+    if (shiftCache.name === name && shiftCache.ym === key) {
       if (shiftCache.promise) return shiftCache.promise;
       if (!force && shiftCache.list) return Promise.resolve(shiftCache.list);
     }
-    var p = callApi('getMyShifts', { name: name }).then(function(list) {
+    // 表示している月の予定を読む（古い GAS は年月を見ずに、いまのシフト表の月を返す）
+    var q = { name: name };
+    if (calYear) { q.year = calYear; q.month = calMonth; }
+    var p = callApi('getMyShifts', q).then(function(list) {
       if (shiftCache.promise === p) {
         shiftCache.list = list || [];
         shiftCache.promise = null;
@@ -473,10 +491,54 @@
       }
       throw err;
     });
-    shiftCache = { name: name, list: null, error: null, promise: p };
+    shiftCache = { name: name, ym: key, list: null, error: null, promise: p };
     onShiftsUpdated();
     return p;
   }
+
+  // ── 月の切り替え ──
+  function ymNum(y, m) { return Number(y) * 12 + Number(m) - 1; }
+  function computeViewMonths() {
+    viewMonths = sheetYm ? [sheetYm] : [];
+    if (sheetYm && gasMonthOk) {
+      // 今月から、いまのシフト表の前の月まで（シフト表を先に来月へ切り替えたとき。最大2か月）
+      var t = new Date(), from = ymNum(t.getFullYear(), t.getMonth() + 1), to = ymNum(sheetYm.year, sheetYm.month);
+      for (var n = Math.max(from, to - 2); n < to; n++) viewMonths.splice(viewMonths.length - 1, 0, { year: Math.floor(n / 12), month: n % 12 + 1 });
+    }
+    renderMonthNav();
+  }
+  function viewIndex() {
+    for (var i = 0; i < viewMonths.length; i++) if (viewMonths[i].year === calYear && viewMonths[i].month === calMonth) return i;
+    return -1;
+  }
+  function renderMonthNav() {
+    var i = viewIndex(), lock = editMode || !monthLoaded;
+    document.getElementById('cal-prev').hidden = lock || !(i > 0);
+    document.getElementById('cal-next').hidden = lock || !(i >= 0 && i < viewMonths.length - 1);
+    var t = new Date(), diff = monthLoaded ? ymNum(calYear, calMonth) - ymNum(t.getFullYear(), t.getMonth() + 1) : NaN;
+    // 選べる月が2つ以上のときだけ「今月／来月」を出す
+    document.getElementById('calSub').textContent = viewMonths.length > 1 ? (diff === 0 ? '今月' : diff === 1 ? '来月' : '') : '';
+  }
+  function setViewMonth(y, m) {
+    if (y === calYear && m === calMonth) return;
+    calYear = y; calMonth = m;
+    picked = {}; startDay = null; endDay = null;
+    renderCal();
+    updateSummary();
+    updateProgress();
+    if (sel.name) fetchMyShifts(sel.name).catch(function() {});
+  }
+  function stepViewMonth(d) {
+    var m = viewMonths[viewIndex() + d];
+    if (m && !editMode) setViewMonth(m.year, m.month);
+  }
+  document.getElementById('cal-prev').addEventListener('click', function() { stepViewMonth(-1); });
+  document.getElementById('cal-next').addEventListener('click', function() { stepViewMonth(1); });
+  // GAS の版を確かめる（月を指定した読み込みができるか）
+  if (GAS_URL) GasClient.get(GAS_URL, { check: 1 }).then(function(r) {
+    gasMonthOk = !!(r && r.version && String(r.version) >= '2026-11-13');
+    computeViewMonths();
+  }).catch(function() {});
 
   function onShiftsUpdated() {
     renderCal();
@@ -912,6 +974,7 @@
 
     if (!monthLoaded) {
       title.textContent = '';
+      renderMonthNav();
       var st = document.createElement('div');
       st.className = 'cal-status';
       if (monthError) {
@@ -928,6 +991,7 @@
     }
 
     title.textContent = calYear + '年' + calMonth + '月';
+    renderMonthNav();
     var firstWd = new Date(calYear, calMonth - 1, 1).getDay();
     var offset = (firstWd === 0) ? 6 : firstWd - 1;
     var daysInMonth = new Date(calYear, calMonth, 0).getDate();
@@ -1291,8 +1355,15 @@
     var listEl = document.getElementById('shift-list');
     if (!confirmName) { listEl.innerHTML = SiegNav.empty('名前を選ぶと表示されます', '上で名前を選んでください'); return; }
     listEl.innerHTML = '<div class="sg-skel-wrap" aria-busy="true" aria-label="読み込み中"><div class="sg-skel card"></div><div class="sg-skel card"></div><div class="sg-skel card"></div></div>';
-    fetchMyShifts(confirmName, true)
-      .then(function(shifts) { renderShiftList(shifts); })
+    // 選べる月が2つ以上なら、両方の月の予定を並べる（今月の残りも、来月の分も直せる）
+    var p = viewMonths.length > 1
+      ? Promise.all(viewMonths.map(function(m) {
+          return callApi('getMyShifts', { name: confirmName, year: m.year, month: m.month }).then(function(list) {
+            return (list || []).filter(function(s) { return Number(s.year) === m.year && Number(s.month) === m.month; });
+          });
+        })).then(function(lists) { return [].concat.apply([], lists); })
+      : fetchMyShifts(confirmName, true);
+    p.then(function(shifts) { renderShiftList(shifts); })
       .catch(function(err) {
         listEl.innerHTML = GasClient.errorHtml(err, '読み込めませんでした', 'もう一度読み込む');
         listEl.querySelector('[data-sg-retry]').onclick = function () { loadMyShifts(); };
@@ -1328,6 +1399,8 @@
   function editShift(i) {
     var shift = loadedShifts[i];
     switchTab('input');
+    exitEditMode();
+    setViewMonth(Number(shift.year), Number(shift.month));   // ほかの月の予定なら、その月に切り替える
 
     sel.name = confirmName;
     sel.torihiki = shift.torihiki;
