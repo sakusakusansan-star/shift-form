@@ -156,6 +156,9 @@
 
     /* ===== 確認タブ ===== */
     .shift-item { border: 1px solid var(--sg-hair); border-radius: 12px; padding: 14px; margin-bottom: 10px; background: var(--sg-sunk); }
+    .post-box { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .post-box[hidden] { display: none; }
+    .post-btn { min-height: 46px; border: 1.5px solid var(--sg-primary); border-radius: 12px; background: var(--sg-surface); color: var(--sg-primary); font: 800 14.5px/1 var(--sg-font, inherit); cursor: pointer; }
     .shift-item .date-label { font-size: 16px; font-weight: 800; color: var(--sg-blue); margin-bottom: 6px; }
     .shift-item .detail { font-size: 14px; margin-bottom: 3px; }
     .shift-item .detail span { color: var(--sg-mute); font-size: 12px; margin-right: 6px; }
@@ -328,6 +331,7 @@
       <div class="chips cols3" id="chips-confirm-name"><!-- 同上 -->
       </div>
     </div>
+    <div id="post-box" class="post-box" hidden></div>
     <div id="shift-list"></div>
   </div>
 
@@ -343,6 +347,7 @@
 <script src="gas-client.js"></script>
 <script src="sieg-nav.js"></script>
 <script src="/sieg-portal/sieg-roster.js"></script>
+<script src="/sieg-portal/shift-post.js"></script>
 <script>
   // ▼▼▼ GASのWebアプリURL（/execで終わるもの） ▼▼▼
   var GAS_URL = "https://script.google.com/macros/s/AKfycbwx4-wjr4Qmx6zeXDXZhht-65W7veveJvaXXmC9V5MQLipOLxLoWfz-XEUBau8NZ58h/exec";
@@ -1385,6 +1390,7 @@
   // ===== 確認・修正 =====
   function loadMyShifts() {
     var listEl = document.getElementById('shift-list');
+    document.getElementById('post-box').hidden = true;
     if (!confirmName) { listEl.innerHTML = SiegNav.empty('名前を選ぶと表示されます', '上で名前を選んでください'); return; }
     listEl.innerHTML = '<div class="sg-skel-wrap" aria-busy="true" aria-label="読み込み中"><div class="sg-skel card"></div><div class="sg-skel card"></div><div class="sg-skel card"></div></div>';
     // 選べる月が2つ以上なら、両方の月の予定を並べる（今月の残りも、来月の分も直せる）
@@ -1402,9 +1408,30 @@
       });
   }
 
+  // Discord に貼る文（鈴木さんだけ。月ごとに1つボタン）
+  var POST_NAMES = ['鈴木'];
+  function renderPostButtons() {
+    var box = document.getElementById('post-box');
+    var months = [], byMonth = {};
+    if (window.SiegShiftPost && POST_NAMES.indexOf(confirmName) >= 0) {
+      loadedShifts.forEach(function(s) {
+        var k = s.year + '-' + s.month;
+        if (!byMonth[k]) { byMonth[k] = { year: Number(s.year), month: Number(s.month), days: {} }; months.push(k); }
+        for (var d = Number(s.startDay); d <= Number(s.endDay); d++) byMonth[k].days[d] = { client: s.torihiki, place: s.place };
+      });
+    }
+    months.sort(function(a, b) { return byMonth[a].year * 12 + byMonth[a].month - (byMonth[b].year * 12 + byMonth[b].month); });
+    box.hidden = !months.length;
+    box.innerHTML = months.map(function(k) { return '<button type="button" class="post-btn" data-k="' + k + '">' + byMonth[k].month + '月分を Discord 用にコピー</button>'; }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('[data-k]'), function(b) {
+      b.onclick = function() { var m = byMonth[b.getAttribute('data-k')]; SiegShiftPost.open({ name: confirmName, year: m.year, month: m.month, days: m.days }); };
+    });
+  }
+
   var loadedShifts = [];
   function renderShiftList(shifts) {
     loadedShifts = shifts || [];
+    renderPostButtons();
     var listEl = document.getElementById('shift-list');
     if (loadedShifts.length === 0) {
       listEl.innerHTML = SiegNav.empty('入力済みのシフトはありません', '「入力」で日にちと内容を選んで送ると、ここに並びます');
