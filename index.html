@@ -377,6 +377,15 @@
     '南国殖産': '#2E7D32', 'ハイコム': '#E65100', 'サンコミ': '#6A1B9A',
     'ダル': '#00838F', 'NOON': '#AD1457', '九情': '#1565C0'
   };
+  // 取引先の一覧はポータルの「取引先」（みんなの状況で直す）。読めなければ上の6つのまま
+  var CLIENTS = window.SiegRoster && SiegRoster.clients ? SiegRoster.clients() : null;
+  var AUTO_CARRIER = { 'ハイコム': 'SoftBank', 'サンコミ': 'au', '九情': 'au' };
+  if (CLIENTS && CLIENTS.length) {
+    AUTO_CARRIER = {};
+    CLIENTS.forEach(function(c) { if (c.color) TORIHIKI_COLORS[c.name] = c.color; if (c.carrier) AUTO_CARRIER[c.name] = c.carrier; });
+    var tbox = document.getElementById('chips-torihiki');
+    if (tbox) tbox.innerHTML = CLIENTS.map(function(c) { var b = document.createElement('button'); b.className = 'chip'; b.dataset.value = c.name; b.textContent = c.name; return b.outerHTML; }).join('');
+  }
 
   // 名前の一覧はポータルの名簿（sieg-roster.js）の「パートナー様用シフト入力を使う人」。
   // 名前ボタン（入力タブ・確認タブ）もここから作る。
@@ -735,7 +744,7 @@
     if (!editMode) scrollToNextAfter('name');
   });
   setupChips('chips-torihiki', 'torihiki', function(v) {
-    var auto = { 'ハイコム': 'SoftBank', 'サンコミ': 'au', '九情': 'au' };
+    var auto = AUTO_CARRIER;
     var badge = document.getElementById('auto-badge');
     if (auto[v]) {
       selectChip('chips-carrier', auto[v]);
